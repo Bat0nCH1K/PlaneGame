@@ -19,10 +19,8 @@
     <button class="action-btn reset-btn" id="reset-btn">🔄</button>
   </div>
   
-  <!-- Кнопка смены вида (только в полёте) -->
-  <button id="view-btn" style="display:none;">📷 Вид</button>
+  <button id="view-btn" style="display:none;">📷 Сзади</button>
   
-  <!-- Стрелки для перемещения выделенной детали -->
   <div id="nudge-controls" style="display:none;">
     <div class="nudge-row">
       <span class="nudge-label">↕️</span>
@@ -43,6 +41,15 @@
   
   <div class="instructions" id="instr">
     👆 Тап по фюзеляжу: поставить деталь | Тап по детали: выделить | Кнопки: двигать | ✌️: вращать
+  </div>
+
+  <!-- Плашка версии -->
+  <div id="version-panel">
+    <div id="version-badge">v1.0.0</div>
+    <div id="changelog-popup" style="display:none;">
+      <div class="changelog-title">📋 История обновлений</div>
+      <div class="changelog-list" id="changelog-list"></div>
+    </div>
   </div>
 
   <script type="importmap">
