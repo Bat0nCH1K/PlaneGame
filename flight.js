@@ -62,7 +62,8 @@ window.detachLooseParts = function (airplaneGroup, partsLayer, placedParts) {
   const detached = [], remaining = [];
   for (const p of placedParts) {
     const snap = p.userData.snapPos;
-    if (snap && p.position.distanceTo(snap) < 0.3) {
+    // Увеличил допуск: 0.8 вместо 0.3
+    if (snap && p.position.distanceTo(snap) < 0.8) {
       remaining.push(p);
     } else {
       const wp = new THREE.Vector3(); p.getWorldPosition(wp);
