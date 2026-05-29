@@ -6,87 +6,70 @@ window.isFlying = false;
 window.flyData = null;
 window.keys = {};
 window.viewMode = 0;
-window.flyingDetachedParts = [];
+window.flyingDetached = [];
 
-let mobileContainer = null;
-let viewBtnBound = false;
+let mobileCtrl = null;
 
 function bindViewBtn() {
   const btn = document.getElementById('view-btn');
-  if (!btn || viewBtnBound) return;
-  viewBtnBound = true;
+  if (!btn || btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
   btn.addEventListener('click', () => {
     window.viewMode = (window.viewMode + 1) % 3;
-    const modes = ['📷 Сзади', '📷 Сбоку', '📷 Свободно'];
-    btn.textContent = modes[window.viewMode];
-    if (window.orbitControls) {
-      window.orbitControls.enabled = (window.viewMode === 2);
-    }
+    btn.textContent = ['📷 Сзади', '📷 Сбоку', '📷 Свободно'][window.viewMode];
+    if (window.controls) window.controls.enabled = (window.viewMode === 2);
   });
 }
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', bindViewBtn);
 } else {
   bindViewBtn();
 }
 
-window.showMobileControls = function() {
-  if (mobileContainer) return;
-  mobileContainer = document.createElement('div');
-  mobileContainer.className = 'mobile-ctrl-container';
-  mobileContainer.innerHTML = `
-    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="ctrl-up">▲</button></div>
-    <div class="mobile-ctrl-row">
-      <button class="ctrl-btn" id="ctrl-left">◀</button>
-      <button class="ctrl-btn" id="ctrl-gas">⚡</button>
-      <button class="ctrl-btn" id="ctrl-right">▶</button>
-    </div>
-    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="ctrl-down">▼</button></div>
-  `;
-  document.body.appendChild(mobileContainer);
-  
-  const bind = (id, key) => {
+window.showMobileControls = function () {
+  if (mobileCtrl) return;
+  mobileCtrl = document.createElement('div');
+  mobileCtrl.className = 'mobile-ctrl-container';
+  mobileCtrl.innerHTML = `
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cg">⚡</button><button class="ctrl-btn" id="cr">▶</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>`;
+  document.body.appendChild(mobileCtrl);
+  const bind = (id, k) => {
     const b = document.getElementById(id);
     if (!b) return;
-    const activate = (e) => { e.preventDefault(); window.keys[key] = true; };
-    const release = (e) => { e.preventDefault(); window.keys[key] = false; };
-    b.addEventListener('pointerdown', activate);
-    b.addEventListener('pointerup', release);
-    b.addEventListener('pointerleave', release);
-    b.addEventListener('pointercancel', release);
+    const a = e => { e.preventDefault(); window.keys[k] = true; };
+    const r = e => { e.preventDefault(); window.keys[k] = false; };
+    b.addEventListener('pointerdown', a);
+    b.addEventListener('pointerup', r);
+    b.addEventListener('pointerleave', r);
+    b.addEventListener('pointercancel', r);
   };
-  bind('ctrl-up', 'arrowup');
-  bind('ctrl-down', 'arrowdown');
-  bind('ctrl-left', 'arrowleft');
-  bind('ctrl-right', 'arrowright');
-  bind('ctrl-gas', 'w');
+  bind('cu', 'arrowup'); bind('cd', 'arrowdown');
+  bind('cl', 'arrowleft'); bind('cr', 'arrowright');
+  bind('cg', 'w');
 };
 
-window.hideMobileControls = function() {
-  if (mobileContainer) { mobileContainer.remove(); mobileContainer = null; }
+window.hideMobileControls = function () {
+  if (mobileCtrl) { mobileCtrl.remove(); mobileCtrl = null; }
   Object.keys(window.keys).forEach(k => window.keys[k] = false);
 };
 
-window.addEventListener('keydown', (e) => { window.keys[e.key.toLowerCase()] = true; });
-window.addEventListener('keyup', (e) => { window.keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keydown', e => { window.keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', e => { window.keys[e.key.toLowerCase()] = false; });
 
-window.detachLooseParts = function(airplaneGroup, partsLayer, placedParts) {
-  const detached = [];
-  const remaining = [];
+window.detachLooseParts = function (airplaneGroup, partsLayer, placedParts) {
+  const detached = [], remaining = [];
   for (const p of placedParts) {
     const snap = p.userData.snapPos;
     if (snap && p.position.distanceTo(snap) < 0.3) {
       remaining.push(p);
     } else {
-      const wp = new THREE.Vector3();
-      p.getWorldPosition(wp);
-      const wq = new THREE.Quaternion();
-      p.getWorldQuaternion(wq);
+      const wp = new THREE.Vector3(); p.getWorldPosition(wp);
+      const wq = new THREE.Quaternion(); p.getWorldQuaternion(wq);
       partsLayer.remove(p);
       airplaneGroup.parent.add(p);
-      p.position.copy(wp);
-      p.quaternion.copy(wq);
+      p.position.copy(wp); p.quaternion.copy(wq);
       detached.push({ part: p, velocity: new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2) });
     }
   }
@@ -95,20 +78,19 @@ window.detachLooseParts = function(airplaneGroup, partsLayer, placedParts) {
   return detached;
 };
 
-window.updateDetachedParts = function(detached, dt) {
+window.updateDetached = function (detached, dt) {
   for (const d of detached) {
     d.velocity.y -= 9.8 * dt;
     d.part.position.add(d.velocity.clone().multiplyScalar(dt));
     if (d.part.position.y < -4.8) { d.part.position.y = -4.8; d.velocity.y *= -0.3; d.velocity.x *= 0.8; d.velocity.z *= 0.8; }
-    d.part.rotation.x += (Math.random()-0.5)*5*dt;
-    d.part.rotation.z += (Math.random()-0.5)*5*dt;
+    d.part.rotation.x += (Math.random()-0.5) * 5 * dt;
+    d.part.rotation.z += (Math.random()-0.5) * 5 * dt;
   }
 };
 
-window.startFlight = function(airplaneGroup, camera, controls, placedParts, partsLayer) {
+window.startFlight = function (airplaneGroup, camera, controls, placedParts, partsLayer) {
   if (!placedParts.some(p=>p.userData.type==='wing') || !placedParts.some(p=>p.userData.type==='tail') || !placedParts.some(p=>p.userData.type==='engine')) {
-    alert('⚠️ Нужны Крыло, Хвост и Двигатель!');
-    return false;
+    alert('⚠️ Нужны Крыло, Хвост и Двигатель!'); return false;
   }
   const detached = window.detachLooseParts(airplaneGroup, partsLayer, placedParts);
   if (!placedParts.some(p=>p.userData.type==='wing') || !placedParts.some(p=>p.userData.type==='tail') || !placedParts.some(p=>p.userData.type==='engine')) {
@@ -119,7 +101,7 @@ window.startFlight = function(airplaneGroup, camera, controls, placedParts, part
   window.isFlying = true;
   window.flyData = { speed: 0, roll: 0, pitch: 0, yaw: 0 };
   window.viewMode = 0;
-  window.flyingDetachedParts = detached;
+  window.flyingDetached = detached;
   airplaneGroup.position.set(0, -4.5, 8);
   airplaneGroup.rotation.set(0, 0, 0);
   controls.enabled = false;
@@ -129,7 +111,7 @@ window.startFlight = function(airplaneGroup, camera, controls, placedParts, part
   return true;
 };
 
-window.exitFlight = function(airplaneGroup, camera, controls) {
+window.exitFlight = function (airplaneGroup, camera, controls) {
   window.isFlying = false;
   window.flyData = null;
   window.viewMode = 0;
@@ -143,14 +125,12 @@ window.exitFlight = function(airplaneGroup, camera, controls) {
   if (vb) vb.style.display = 'none';
 };
 
-window.updateFlight = function(airplaneGroup, camera, controls, dt) {
+window.updateFlight = function (airplaneGroup, camera, controls, dt) {
   if (!window.isFlying || !window.flyData) return;
-  const k = window.keys;
-  const f = window.flyData;
-  const thr = k['w'] ? 1 : (k['s'] ? -1 : 0);
-  f.speed += thr * 0.015;
+  const k = window.keys, f = window.flyData;
+  f.speed += ((k['w']?1:0)-(k['s']?1:0)) * 0.015;
   f.speed = Math.max(0, Math.min(f.speed, 0.7));
-  if (f.speed < 0.08 && thr === 0 && airplaneGroup.position.y < -3) f.speed += 0.004;
+  if (f.speed < 0.08 && !k['w'] && !k['s'] && airplaneGroup.position.y < -3) f.speed += 0.004;
   f.roll += ((k['a']?1:0)-(k['d']?1:0)) * 0.02;
   f.pitch += ((k['arrowup']?1:0)-(k['arrowdown']?1:0)) * 0.015;
   f.yaw += ((k['arrowleft']?1:0)-(k['arrowright']?1:0)) * 0.01;
@@ -160,10 +140,10 @@ window.updateFlight = function(airplaneGroup, camera, controls, dt) {
   airplaneGroup.rotation.y += f.yaw;
   const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(airplaneGroup.quaternion);
   airplaneGroup.position.add(fwd.multiplyScalar(f.speed));
-  airplaneGroup.position.y += (f.pitch*f.speed*0.25) - 0.015 + f.speed*0.036;
-  if (airplaneGroup.position.y < -4.6) { airplaneGroup.position.y = -4.6; if (f.pitch<0) f.pitch*=-0.3; if (f.speed>0.3) f.speed*=0.95; }
+  airplaneGroup.position.y += f.pitch * f.speed * 0.25 - 0.015 + f.speed * 0.036;
+  if (airplaneGroup.position.y < -4.6) { airplaneGroup.position.y = -4.6; if (f.pitch<0) f.pitch *= -0.3; if (f.speed>0.3) f.speed *= 0.95; }
   if (airplaneGroup.position.y > 20) airplaneGroup.position.y = 20;
-  
+
   if (window.viewMode === 0) {
     const off = new THREE.Vector3(0,2.5,7).applyQuaternion(airplaneGroup.quaternion);
     camera.position.lerp(airplaneGroup.position.clone().add(off), 0.1);
