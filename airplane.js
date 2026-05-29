@@ -56,19 +56,22 @@ window.createPart = function (type) {
     const eg = new THREE.BoxGeometry(0.06,0.1,0.72), em = new THREE.MeshStandardMaterial({color:0xc0560a});
     const el = new THREE.Mesh(eg,em); el.position.set(-1.25,0,0); g.add(el);
     const er = new THREE.Mesh(eg,em); er.position.set(1.25,0,0); g.add(er);
-    g.userData.snapPos = new THREE.Vector3(0,0.05,0);
+    // Крылья крепятся по бокам фюзеляжа (X)
+    g.userData.snapPos = new THREE.Vector3(0, 0.05, 0);
   } else if (type === 'tail') {
     const h = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.06,0.35), new THREE.MeshStandardMaterial({color:0x9b59b6,roughness:0.5,metalness:0.5}));
     h.userData.isPartMesh = true; g.add(h);
     const v = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.5,0.35), new THREE.MeshStandardMaterial({color:0x9b59b6,roughness:0.5,metalness:0.5}));
     v.position.y = 0.3; v.userData.isPartMesh = true; g.add(v);
-    g.userData.snapPos = new THREE.Vector3(0,0.3,1.55);
+    // Хвост сзади (Z+)
+    g.userData.snapPos = new THREE.Vector3(0, 0.3, 1.55);
   } else {
     const e = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.28,0.7,8), new THREE.MeshStandardMaterial({color:0xccccdd,roughness:0.3,metalness:0.8}));
     e.rotation.x = Math.PI/2; e.userData.isPartMesh = true; g.add(e);
     const s = new THREE.Mesh(new THREE.TorusGeometry(0.26,0.04,6,12), new THREE.MeshStandardMaterial({color:0xe74c3c,roughness:0.2,metalness:0.3}));
     s.rotation.y = Math.PI/2; s.userData.isPartMesh = true; g.add(s);
-    g.userData.snapPos = new THREE.Vector3(0.55,0,0);
+    // Двигатели под крыльями (Y-)
+    g.userData.snapPos = new THREE.Vector3(0.55, -0.4, 0);
   }
   const lb = mkLabel(type==='wing'?'🪽':type==='tail'?'🪁':'🚀');
   lb.position.set(0,0.5,0);
@@ -153,9 +156,10 @@ window.renderer.domElement.addEventListener('pointerup', e => {
   if (!dragged) { if (!wasOnPart && !window.isFlying) placeClick(e); return; }
   const snap = dragged.userData.snapPos;
   if (snap) {
-    const ws = snap.clone(); window.airplaneGroup.localToWorld(ws);
-    const pw = new THREE.Vector3(); dragged.getWorldPosition(pw);
-    if (pw.distanceTo(ws) < 1.2) dragged.position.copy(snap);
+    // Увеличил радиус притягивания до 1.5
+    if (dragged.position.distanceTo(snap) < 1.5) {
+      dragged.position.copy(snap);
+    }
   }
   dragged = null; window.controls.enabled = true;
   document.getElementById('mode-indicator').textContent = window.isFlying ? '✈️ ПОЛЕТ' : '🛠️ СБОРКА';
@@ -175,7 +179,12 @@ function placeClick(e) {
     const pt = fh[0].point.clone(); window.airplaneGroup.worldToLocal(pt);
     const part = window.createPart(type);
     part.position.copy(pt);
+    // Автоматически притягиваем, если близко
+    const snap = part.userData.snapPos;
+    if (snap && pt.distanceTo(snap) < 1.5) {
+      part.position.copy(snap);
+    }
     partsLayer.add(part); window.placedParts.push(part);
     window.selectPart(part);
   }
-}
+                                           }
