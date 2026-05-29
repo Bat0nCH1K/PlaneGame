@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>3D Конструктор самолетов ✈️</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="mode-indicator">🛠️ СБОРКА</div>
+  
+  <div id="ui">
+    <div class="panel">
+      <button class="part-btn active" id="btn-wing">🪽<span>Крыло</span></button>
+      <button class="part-btn" id="btn-tail">🪁<span>Хвост</span></button>
+      <button class="part-btn" id="btn-engine">🚀<span>Двиг</span></button>
+    </div>
+    <button class="action-btn" id="fly-btn">✈️ ВЗЛЕТ</button>
+    <button class="action-btn reset-btn" id="reset-btn">🔄</button>
+  </div>
+  
+  <div class="instructions" id="instr">
+    👆 Тап: деталь | ✌️ Два пальца: вращать | Сведите/разведите: зум
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
