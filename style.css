@@ -144,6 +144,28 @@ canvas {
   background: #e74c3c;
 }
 
+#view-btn {
+  position: absolute;
+  top: 10px;
+  right: 120px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.3);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 15;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#view-btn:active {
+  background: rgba(255,255,255,0.3);
+}
+
 /* Кнопки смещения */
 #nudge-controls {
   position: absolute;
@@ -259,5 +281,11 @@ canvas {
   .action-btn {
     padding: 10px 16px;
     font-size: 13px;
+  }
+  #view-btn {
+    top: 50px;
+    right: 10px;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }
