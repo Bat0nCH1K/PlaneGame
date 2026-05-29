@@ -144,6 +144,52 @@ canvas {
   background: #e74c3c;
 }
 
+/* Кнопки смещения */
+#nudge-controls {
+  position: absolute;
+  bottom: 120px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0,0,0,0.7);
+  padding: 8px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nudge-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nudge-label {
+  color: white;
+  font-size: 14px;
+  width: 24px;
+  text-align: center;
+}
+
+.nudge-btn {
+  width: 38px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nudge-btn:active {
+  background: rgba(255,255,255,0.4);
+}
+
 .instructions {
   position: absolute;
   bottom: 15px;
@@ -159,13 +205,48 @@ canvas {
   -webkit-backdrop-filter: blur(10px);
   text-align: center;
   white-space: nowrap;
+  max-width: 95vw;
 }
 
 .flying .instructions {
   font-size: 10px;
 }
 
-/* Кнопки управления для полета */
+/* Мобильные кнопки полета */
+.mobile-ctrl-container {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 20;
+}
+
+.mobile-ctrl-row {
+  display: flex;
+  gap: 6px;
+}
+
+.ctrl-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
+  background: rgba(255,255,255,0.2);
+  border: 2px solid rgba(255,255,255,0.5);
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.ctrl-btn:active {
+  background: rgba(255,255,255,0.5);
+}
+
 @media (max-width: 600px) {
   .part-btn {
     width: 48px;
@@ -179,4 +260,4 @@ canvas {
     padding: 10px 16px;
     font-size: 13px;
   }
-  }
+}
