@@ -19,8 +19,27 @@
     <button class="action-btn reset-btn" id="reset-btn">🔄</button>
   </div>
   
+  <!-- Стрелки для перемещения выделенной детали -->
+  <div id="nudge-controls" style="display:none;">
+    <div class="nudge-row">
+      <span class="nudge-label">↕️</span>
+      <button class="nudge-btn" data-axis="y" data-dir="1">↑Y</button>
+      <button class="nudge-btn" data-axis="y" data-dir="-1">↓Y</button>
+    </div>
+    <div class="nudge-row">
+      <span class="nudge-label">↔️</span>
+      <button class="nudge-btn" data-axis="x" data-dir="1">→X</button>
+      <button class="nudge-btn" data-axis="x" data-dir="-1">←X</button>
+    </div>
+    <div class="nudge-row">
+      <span class="nudge-label">🔃</span>
+      <button class="nudge-btn" data-axis="z" data-dir="1">↑Z</button>
+      <button class="nudge-btn" data-axis="z" data-dir="-1">↓Z</button>
+    </div>
+  </div>
+  
   <div class="instructions" id="instr">
-    👆 Тап: деталь | ✌️ Два пальца: вращать | Сведите/разведите: зум
+    👆 Тап по фюзеляжу: поставить деталь | Тап по детали: выделить | Кнопки: двигать | ✌️: вращать
   </div>
 
   <script type="importmap">
