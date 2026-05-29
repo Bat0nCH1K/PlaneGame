@@ -6,9 +6,42 @@ import * as THREE from 'three';
 window.isFlying = false;
 window.flyData = null;
 window.keys = {};
-window.viewMode = 0; // 0 = сзади, 1 = сбоку, 2 = свободная
+window.viewMode = 0;
 
 let mobileCtrlContainer = null;
+let viewBtnClickHandler = null;
+
+// Инициализация после загрузки DOM
+function initFlightUI() {
+  const viewBtn = document.getElementById('view-btn');
+  if (!viewBtn) return;
+  
+  // Удаляем старый обработчик если был
+  if (viewBtnClickHandler) {
+    viewBtn.removeEventListener('click', viewBtnClickHandler);
+  }
+  
+  viewBtnClickHandler = () => {
+    window.viewMode = (window.viewMode + 1) % 3;
+    const modes = ['📷 Сзади', '📷 Сбоку', '📷 Свободно'];
+    viewBtn.textContent = modes[window.viewMode];
+    
+    if (window.viewMode === 2) {
+      if (window.orbitControls) window.orbitControls.enabled = true;
+    } else {
+      if (window.orbitControls) window.orbitControls.enabled = false;
+    }
+  };
+  
+  viewBtn.addEventListener('click', viewBtnClickHandler);
+}
+
+// Ждём загрузки DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFlightUI);
+} else {
+  initFlightUI();
+}
 
 window.showMobileControls = function() {
   if (mobileCtrlContainer) return;
@@ -58,7 +91,6 @@ window.hideMobileControls = function() {
 window.addEventListener('keydown', (e) => { window.keys[e.key.toLowerCase()] = true; });
 window.addEventListener('keyup', (e) => { window.keys[e.key.toLowerCase()] = false; });
 
-// Логика «отваливания» неприваренных деталей
 window.detachLooseParts = function(airplaneGroup, partsLayer, placedParts) {
   const detachedParts = [];
   const remainingParts = [];
@@ -69,15 +101,12 @@ window.detachLooseParts = function(airplaneGroup, partsLayer, placedParts) {
     
     if (snapLocal) {
       const dist = part.position.distanceTo(snapLocal);
-      if (dist < 0.3) {
-        isSnapped = true;
-      }
+      if (dist < 0.3) isSnapped = true;
     }
     
     if (isSnapped) {
       remainingParts.push(part);
     } else {
-      // Открепляем от самолёта и добавляем в сцену
       const worldPos = new THREE.Vector3();
       part.getWorldPosition(worldPos);
       const worldQuat = new THREE.Quaternion();
@@ -99,7 +128,6 @@ window.detachLooseParts = function(airplaneGroup, partsLayer, placedParts) {
     }
   }
   
-  // Обновляем массив placedParts
   placedParts.length = 0;
   placedParts.push(...remainingParts);
   
@@ -111,7 +139,6 @@ window.updateDetachedParts = function(detachedParts, dt) {
     dp.velocity.y -= 9.8 * dt;
     dp.part.position.add(dp.velocity.clone().multiplyScalar(dt));
     
-    // Столкновение с землёй
     if (dp.part.position.y < -4.8) {
       dp.part.position.y = -4.8;
       dp.velocity.y *= -0.3;
@@ -119,13 +146,11 @@ window.updateDetachedParts = function(detachedParts, dt) {
       dp.velocity.z *= 0.8;
     }
     
-    // Вращение при падении
     dp.part.rotation.x += (Math.random() - 0.5) * 5 * dt;
     dp.part.rotation.z += (Math.random() - 0.5) * 5 * dt;
   }
 };
 
-// ---------- ПОЛЁТ ----------
 window.startFlight = function(airplaneGroup, camera, controls, placedParts, partsLayer) {
   const hasWing = placedParts.some(p => p.userData.type === 'wing');
   const hasTail = placedParts.some(p => p.userData.type === 'tail');
@@ -136,17 +161,14 @@ window.startFlight = function(airplaneGroup, camera, controls, placedParts, part
     return { success: false, detachedParts: [] };
   }
   
-  // Открепляем неприваренные детали
   const detached = window.detachLooseParts(airplaneGroup, partsLayer, placedParts);
   
-  // Проверяем, остались ли все типы после отваливания
   const stillHasWing = placedParts.some(p => p.userData.type === 'wing');
   const stillHasTail = placedParts.some(p => p.userData.type === 'tail');
   const stillHasEngine = placedParts.some(p => p.userData.type === 'engine');
   
   if (!stillHasWing || !stillHasTail || !stillHasEngine) {
     alert('⚠️ Часть деталей отвалилась! Приварите их к правильным местам.');
-    // Возвращаем отвалившиеся обратно
     for (const dp of detached) {
       partsLayer.add(dp.part);
       placedParts.push(dp.part);
@@ -163,7 +185,6 @@ window.startFlight = function(airplaneGroup, camera, controls, placedParts, part
   };
   window.viewMode = 0;
   
-  // Самолёт на земле, нос по -Z
   airplaneGroup.position.set(0, -4.5, 8);
   airplaneGroup.rotation.set(0, 0, 0);
   
@@ -226,7 +247,6 @@ window.updateFlight = function(airplaneGroup, camera, controls, dt) {
   airplaneGroup.rotation.x = fd.pitch;
   airplaneGroup.rotation.y += fd.yaw;
   
-  // Вперёд = -Z в локальных координатах
   const forward = new THREE.Vector3(0, 0, -1);
   forward.applyQuaternion(airplaneGroup.quaternion);
   airplaneGroup.position.add(forward.multiplyScalar(fd.speed));
@@ -234,47 +254,28 @@ window.updateFlight = function(airplaneGroup, camera, controls, dt) {
   const lift = fd.speed * 0.12;
   airplaneGroup.position.y += (fd.pitch * fd.speed * 0.25) - 0.015 + lift * 0.3;
   
-  // Столкновение с землёй
   if (airplaneGroup.position.y < -4.6) {
     airplaneGroup.position.y = -4.6;
     if (fd.pitch < 0) fd.pitch *= -0.3;
     if (fd.speed > 0.3) fd.speed *= 0.95;
   }
   
-  // Потолок
   if (airplaneGroup.position.y > 20) airplaneGroup.position.y = 20;
   
-  // Камера в зависимости от режима
   if (window.viewMode === 0) {
-    // Вид сзади
     const camOffset = new THREE.Vector3(0, 2.5, 7);
     camOffset.applyQuaternion(airplaneGroup.quaternion);
     camera.position.lerp(airplaneGroup.position.clone().add(camOffset), 0.1);
     controls.target.lerp(airplaneGroup.position.clone(), 0.15);
   } else if (window.viewMode === 1) {
-    // Вид сбоку
     const camOffset = new THREE.Vector3(8, 1.5, 0);
     camOffset.applyQuaternion(airplaneGroup.quaternion);
     camera.position.lerp(airplaneGroup.position.clone().add(camOffset), 0.08);
     controls.target.lerp(airplaneGroup.position.clone(), 0.1);
   } else {
-    // Свободная камера
     if (!controls.enabled) {
       controls.enabled = true;
       controls.target.copy(airplaneGroup.position);
     }
   }
 };
-
-// Кнопка смены вида
-document.getElementById('view-btn').addEventListener('click', () => {
-  window.viewMode = (window.viewMode + 1) % 3;
-  const modes = ['📷 Сзади', '📷 Сбоку', '📷 Свободно'];
-  document.getElementById('view-btn').textContent = modes[window.viewMode];
-  
-  if (window.viewMode === 2) {
-    window.orbitControls.enabled = true;
-  } else {
-    window.orbitControls.enabled = false;
-  }
-});
