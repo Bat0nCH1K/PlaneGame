@@ -1,5 +1,7 @@
 // ui.js — кнопки, версия, чейнджлог, цикл
 
+import * as THREE from 'three';
+
 window.selectedPartType = 'wing';
 
 const modeInd = document.getElementById('mode-indicator');
