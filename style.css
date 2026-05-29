@@ -167,7 +167,6 @@ canvas {
   background: rgba(255,255,255,0.3);
 }
 
-/* Кнопки смещения */
 #nudge-controls {
   position: absolute;
   bottom: 120px;
