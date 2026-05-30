@@ -1,4 +1,4 @@
-// flight.js v1.3.0
+// flight.js v2.0 — полёт
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -31,12 +31,9 @@ window.showMobileControls = function() {
   const bind = (id, key) => {
     const b = document.getElementById(id);
     if (!b) return;
-    const a = e => { e.preventDefault(); window.keys[key] = true; };
-    const r = e => { e.preventDefault(); window.keys[key] = false; };
-    b.addEventListener('pointerdown', a);
-    b.addEventListener('pointerup', r);
-    b.addEventListener('pointerleave', r);
-    b.addEventListener('pointercancel', r);
+    b.addEventListener('pointerdown', e => { e.preventDefault(); window.keys[key] = true; });
+    b.addEventListener('pointerup', e => { e.preventDefault(); window.keys[key] = false; });
+    b.addEventListener('pointerleave', () => { window.keys[key] = false; });
   };
   bind('cu', 'pitchup');
   bind('cd', 'pitchdown');
@@ -109,9 +106,9 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     }
   }
   window.isFlying = true;
-  const sp = { small: 0.4, med: 0.55, big: 0.7 };
-  const agil = { small: 1.0, med: 0.65, big: 0.4 };
-  window.flyData = { speed: 0.08, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
+  const sp = { small: 0.5, med: 0.65, big: 0.8 };
+  const agil = { small: 1.2, med: 0.8, big: 0.5 };
+  window.flyData = { speed: 0.15, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
   window.viewMode = 0;
   window.flyingDetached = det;
   ag.position.set(0, -4.5, 30);
@@ -121,6 +118,8 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
   document.body.classList.add('flying');
   const vb = document.getElementById('view-btn');
   if (vb) { vb.style.display = 'block'; vb.textContent = '📷 Сзади'; }
+  const fb = document.getElementById('fly-btn');
+  if (fb) { fb.textContent = '🛬 ЗЕМЛЯ'; fb.style.display = 'block'; }
   return true;
 };
 
@@ -137,6 +136,8 @@ window.exitFlight = function(ag, cam, ctrl) {
   document.body.classList.remove('flying');
   const vb = document.getElementById('view-btn');
   if (vb) vb.style.display = 'none';
+  const fb = document.getElementById('fly-btn');
+  if (fb) { fb.textContent = '✈️ ВЗЛЕТ'; fb.style.display = 'block'; }
 };
 
 window.updateFlight = function(ag, cam, ctrl, dt) {
@@ -146,66 +147,62 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const a = f.agility;
 
   // Газ
-  const throttle = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
-  f.speed += throttle * 0.008;
-  f.speed = Math.max(0.01, Math.min(f.speed, f.maxSpeed));
+  if (k['w']) f.speed += 0.015;
+  if (k['s']) f.speed -= 0.01;
+  f.speed = Math.max(0, Math.min(f.speed, f.maxSpeed));
 
-  // Плавное торможение
-  f.speed *= 0.997;
+  // Тангаж — через кватернион, чтобы всегда относительно самолёта
+  const pitchQ = new THREE.Quaternion();
+  const pitchAxis = new THREE.Vector3(1, 0, 0);
+  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.02 * a;
+  pitchQ.setFromAxisAngle(pitchAxis, pitchInput);
+  ag.quaternion.multiply(pitchQ);
 
-  // ТАНГАЖ — ВСЕГДА ОТНОСИТЕЛЬНО САМОЛЁТА
-  // pitchup = нос вверх в локальных координатах
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.012 * a;
-  f.pitch += pitchInput;
-  f.pitch = Math.max(-0.5, Math.min(0.5, f.pitch));
-  f.pitch *= 0.996;
+  // Рыскание
+  const yawQ = new THREE.Quaternion();
+  const yawAxis = new THREE.Vector3(0, 1, 0);
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.008 * a;
+  yawQ.setFromAxisAngle(yawAxis, yawInput);
+  ag.quaternion.multiply(yawQ);
 
-  // РЫСКАНИЕ — ОЧЕНЬ ПЛАВНО
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.002 * a;
-  f.yaw += yawInput;
-  f.yaw *= 0.94;
-  f.yaw = Math.max(-0.02, Math.min(0.02, f.yaw));
-
-  // КРЕН — плавный, в сторону поворота
-  const targetRoll = f.yaw * 10;
-  f.roll += (targetRoll - f.roll) * 0.03;
-
-  // Применяем повороты в порядке: yaw, pitch, roll
-  ag.rotation.y += f.yaw;
-  ag.rotation.x = f.pitch;
+  // Крен — только визуальный, через рыскание
+  const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.3;
+  f.roll += (yawRate - f.roll) * 0.1;
   ag.rotation.z = f.roll;
 
   // Вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
-  ag.position.add(fwd.multiplyScalar(f.speed));
+  ag.position.add(fwd.multiplyScalar(f.speed * dt * 60));
 
-  // Подъёмная сила
-  const lift = f.speed * 0.1 + f.pitch * f.speed * 0.3;
-  ag.position.y += lift - 0.008;
+  // Гравитация — ВСЕГДА
+  ag.position.y -= 9.8 * dt;
 
-  // ПЛАВНОЕ ПАДЕНИЕ при низкой скорости
-  if (f.speed < 0.12) {
-    const fallFactor = (0.12 - f.speed) / 0.12;
-    ag.position.y -= fallFactor * 0.05;
+  // Подъёмная сила — только при достаточной скорости
+  if (f.speed > 0.15) {
+    const lift = (f.speed - 0.15) * 0.5;
+    ag.position.y += lift * dt * 60;
   }
 
   // Земля
-  if (ag.position.y < -4.6) {
-    ag.position.y = -4.6;
-    if (f.pitch < 0) f.pitch *= -0.3;
-    if (f.speed > 0.3) f.speed *= 0.95;
+  if (ag.position.y < -4.5) {
+    ag.position.y = -4.5;
+    ag.rotation.x *= 0.5;
+    ag.rotation.z *= 0.5;
+    f.speed *= 0.9;
   }
-  if (ag.position.y > 30) ag.position.y = 30;
+
+  // Потолок
+  if (ag.position.y > 40) ag.position.y = 40;
 
   // Камера
   if (window.viewMode === 0) {
-    const off = new THREE.Vector3(0, 4, 12).applyQuaternion(ag.quaternion);
+    const off = new THREE.Vector3(0, 3, 10).applyQuaternion(ag.quaternion);
+    cam.position.lerp(ag.position.clone().add(off), 0.06);
+    ctrl.target.lerp(ag.position.clone(), 0.1);
+  } else if (window.viewMode === 1) {
+    const off = new THREE.Vector3(10, 2, 0).applyQuaternion(ag.quaternion);
     cam.position.lerp(ag.position.clone().add(off), 0.05);
     ctrl.target.lerp(ag.position.clone(), 0.08);
-  } else if (window.viewMode === 1) {
-    const off = new THREE.Vector3(15, 2.5, 0).applyQuaternion(ag.quaternion);
-    cam.position.lerp(ag.position.clone().add(off), 0.04);
-    ctrl.target.lerp(ag.position.clone(), 0.06);
   } else {
     if (!ctrl.enabled) { ctrl.enabled = true; ctrl.target.copy(ag.position); }
   }
