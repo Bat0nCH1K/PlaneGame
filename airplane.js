@@ -1,4 +1,4 @@
-// airplane.js v1.2.3
+// airplane.js v1.3.0
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
@@ -7,7 +7,7 @@ ag.position.set(0,0,0);
 window.scene.add(ag);
 window.airplaneGroup = ag;
 
-let fm, nm, cm;
+let fm, nm, cm, bigHitbox;
 window.hitTargets = [];
 window.currentFuselage = 'med';
 
@@ -23,6 +23,7 @@ window.setFuselage = function(t) {
   if (fm) ag.remove(fm);
   if (nm) ag.remove(nm);
   if (cm) ag.remove(cm);
+  if (bigHitbox) ag.remove(bigHitbox);
   window.hitTargets.length = 0;
 
   fm = new THREE.Mesh(
@@ -51,6 +52,14 @@ window.setFuselage = function(t) {
   cm.scale.set(0.55, 0.35, 0.55);
   ag.add(cm);
   window.hitTargets.push(cm);
+
+  // НЕВИДИМАЯ СФЕРА для больших хитбоксов
+  bigHitbox = new THREE.Mesh(
+    new THREE.SphereGeometry(c.l * 0.7, 8, 8),
+    new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 })
+  );
+  ag.add(bigHitbox);
+  window.hitTargets.push(bigHitbox);
 };
 window.setFuselage('med');
 
@@ -131,7 +140,6 @@ let dr = null, wop = false;
 function gh(e) {
   const r = window.renderer.domElement.getBoundingClientRect();
   rc.setFromCamera(new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1), window.camera);
-  // Увеличенные хитбоксы — проверяем и детали и фюзеляж вместе
   return {
     fh: rc.intersectObjects(window.hitTargets||[], false),
     ph: rc.intersectObjects(window.placedParts||[], true)
@@ -157,24 +165,21 @@ window.renderer.domElement.addEventListener('pointermove', e => {
   if (!dr || window.isFlying) return;
   const r = window.renderer.domElement.getBoundingClientRect();
   rc.setFromCamera(new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1), window.camera);
-  // Ищем пересечение с фюзеляжем
   const h = rc.intersectObjects(window.hitTargets||[], false);
   if (h.length) {
     const pt = h[0].point.clone();
     ag.worldToLocal(pt);
-    // Больше свободы перемещения
-    pt.y = Math.max(-3, Math.min(3, pt.y));
-    pt.x = Math.max(-3, Math.min(3, pt.x));
-    pt.z = Math.max(-3, Math.min(3, pt.z));
+    pt.y = Math.max(-4, Math.min(4, pt.y));
+    pt.x = Math.max(-4, Math.min(4, pt.x));
+    pt.z = Math.max(-4, Math.min(4, pt.z));
     dr.position.copy(pt);
   }
 });
 
 window.renderer.domElement.addEventListener('pointerup', e => {
   if (!dr) { if (!wop && !window.isFlying) pc(e); return; }
-  // Автоприваривание при отпускании — увеличен радиус
   const snap = dr.userData.snapPos;
-  if (snap && dr.position.distanceTo(snap) < 2.0) {
+  if (snap && dr.position.distanceTo(snap) < 2.5) {
     dr.position.copy(snap);
   }
   dr = null;
@@ -204,4 +209,4 @@ function pc(e) {
     window.placedParts.push(p);
     window.selectPart(p);
   }
-      }
+  }
