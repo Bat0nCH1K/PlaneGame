@@ -1,4 +1,4 @@
-// flight.js — полёт (тангаж навсегда, крен в поворотах)
+// flight.js — полёт v1.2.0
 
 import * as THREE from 'three';
 
@@ -35,31 +35,29 @@ window.detachLooseParts=function(ag,pl,pp){
   for(const p of pp){
     const s=p.userData.snapPos;
     if(s&&p.position.distanceTo(s)<0.8)r.push(p);
-    else{const wp=new THREE.Vector3();p.getWorldPosition(wp);const wq=new THREE.Quaternion();p.getWorldQuaternion(wq);pl.remove(p);ag.parent.add(p);p.position.copy(wp);p.quaternion.copy(wq);d.push({part:p,velocity:new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2)});}
+    else{const wp=new THREE.Vector3();p.getWorldPosition(wp);const wq=new THREE.Quaternion();p.getWorldQuaternion(wq);pl.remove(p);ag.parent.add(p);p.position.copy(wp);p.quaternion.copy(wq);d.push({part:p,vel:new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2)});}
   }
   pp.length=0;pp.push(...r);return d;
 };
 
 window.updateDetached=function(d,dt){
-  for(const x of d){
-    x.velocity.y-=9.8*dt;x.part.position.add(x.velocity.clone().multiplyScalar(dt));
-    if(x.part.position.y<-4.8){x.part.position.y=-4.8;x.velocity.y*=-0.3;x.velocity.x*=0.8;x.velocity.z*=0.8;}
-    x.part.rotation.x+=(Math.random()-0.5)*5*dt;x.part.rotation.z+=(Math.random()-0.5)*5*dt;
-  }
+  for(const x of d){x.vel.y-=9.8*dt;x.part.position.add(x.vel.clone().multiplyScalar(dt));if(x.part.position.y<-4.8){x.part.position.y=-4.8;x.vel.y*=-0.3;x.vel.x*=0.8;x.vel.z*=0.8;}x.part.rotation.x+=(Math.random()-0.5)*5*dt;x.part.rotation.z+=(Math.random()-0.5)*5*dt;}
 };
 
 window.startFlight=function(ag,cam,ctrl,pp,pl){
-  if(!pp.some(p=>p.userData.type==='wing')||!pp.some(p=>p.userData.type==='tail')||!pp.some(p=>p.userData.type==='engine')){alert('⚠️ Нужны Крыло, Хвост и Двигатель!');return false;}
+  const needs={small:{wing:1,tail:1,engine:1},med:{wing:2,tail:1,engine:1},big:{wing:2,tail:1,engine:2}};
+  const n=needs[window.currentFuselage||'med'];
+  for(const t of['wing','tail','engine']){if(pp.filter(p=>p.userData.type===t).length<(n[t]||0)){alert('⚠️ Нужно: крыльев '+n.wing+', хвостов '+n.tail+', двигателей '+n.engine);return false;}}
   const det=window.detachLooseParts(ag,pl,pp);
-  if(!pp.some(p=>p.userData.type==='wing')||!pp.some(p=>p.userData.type==='tail')||!pp.some(p=>p.userData.type==='engine')){alert('⚠️ Часть деталей отвалилась!');for(const x of det){pl.add(x.part);pp.push(x.part);}return false;}
+  for(const t of['wing','tail','engine']){if(pp.filter(p=>p.userData.type===t).length<(n[t]||0)){alert('⚠️ Детали отвалились!');for(const x of det){pl.add(x.part);pp.push(x.part);}return false;}}
   window.isFlying=true;
-  // Скорость зависит от фюзеляжа
-  const fusType=window.currentFuselage||'med';
-  const speeds={small:0.5,med:0.7,big:1.0};
-  window.flyData={speed:0,roll:0,pitch:0,yaw:0,maxSpeed:speeds[fusType],agility:fusType==='small'?1.5:fusType==='med'?1.0:0.6};
+  const speeds={small:0.45,med:0.6,big:0.75};
+  const agil={small:1.0,med:0.7,big:0.45};
+  window.flyData={speed:0,roll:0,pitch:0,yaw:0,maxSpeed:speeds[window.currentFuselage],agility:agil[window.currentFuselage]};
   window.viewMode=0;window.flyingDetached=det;
-  ag.position.set(0,-4.5,15);ag.rotation.set(0,0,0);
+  ag.position.set(0,-4.5,30);ag.rotation.set(0,0,0);
   ctrl.enabled=false;window.showMobileControls();
+  document.body.classList.add('flying');
   const vb=document.getElementById('view-btn');if(vb){vb.style.display='block';vb.textContent='📷 Сзади';}
   return true;
 };
@@ -67,7 +65,7 @@ window.startFlight=function(ag,cam,ctrl,pp,pl){
 window.exitFlight=function(ag,cam,ctrl){
   window.isFlying=false;window.flyData=null;window.viewMode=0;
   ag.position.set(0,0,0);ag.rotation.set(0,0,0);ctrl.target.set(0,0.3,0);ctrl.enabled=true;ctrl.update();
-  window.hideMobileControls();
+  window.hideMobileControls();document.body.classList.remove('flying');
   const vb=document.getElementById('view-btn');if(vb)vb.style.display='none';
 };
 
@@ -75,50 +73,42 @@ window.updateFlight=function(ag,cam,ctrl,dt){
   if(!window.isFlying||!window.flyData)return;
   const k=window.keys,f=window.flyData,a=f.agility;
   
-  // Газ
-  f.speed+=((k['w']?1:0)-(k['s']?1:0))*0.01;
+  f.speed+=((k['w']?1:0)-(k['s']?1:0))*0.008;
   f.speed=Math.max(0,Math.min(f.speed,f.maxSpeed));
-  if(f.speed<0.05&&!k['w']&&!k['s']&&ag.position.y<-3)f.speed+=0.003;
+  if(f.speed<0.05&&!k['w']&&!k['s']&&ag.position.y<-3)f.speed+=0.002;
   
-  // Тангаж — НАВСЕГДА (не возвращается)
-  const pitchInput=((k['arrowup']?1:0)-(k['arrowdown']?1:0))*0.015*a;
-  f.pitch+=pitchInput;
-  f.pitch=Math.max(-0.8,Math.min(0.8,f.pitch));
+  // Тангаж — ВСЕГДА НОС (pitch меняет наклон носа, а не хвоста)
+  f.pitch+=((k['arrowup']?1:0)-(k['arrowdown']?1:0))*0.01*a;
+  f.pitch=Math.max(-0.7,Math.min(0.7,f.pitch));
   
-  // Крен — при поворотах
-  const yawInput=((k['arrowleft']?1:0)-(k['arrowright']?1:0))*0.012*a;
-  f.yaw+=yawInput;
-  f.yaw*=0.98;
-  // Автоматический крен при рыскании
-  const targetRoll=-f.yaw*8;
-  f.roll+=(targetRoll-f.roll)*0.08;
+  // Рыскание (поворот)
+  f.yaw+=((k['arrowright']?1:0)-(k['arrowleft']?1:0))*0.006*a;
+  f.yaw*=0.97;
   
-  // Затухание только рыскания
-  f.pitch*=0.995;
+  // Крен — В НУЖНУЮ СТОРОНУ: при повороте вправо крен вправо
+  const targetRoll=f.yaw*6;
+  f.roll+=(targetRoll-f.roll)*0.06;
   
   ag.rotation.z=f.roll;
   ag.rotation.x=f.pitch;
   ag.rotation.y+=f.yaw;
   
-  // Движение
   const fwd=new THREE.Vector3(0,0,-1).applyQuaternion(ag.quaternion);
   ag.position.add(fwd.multiplyScalar(f.speed));
   
-  // Подъёмная сила зависит от скорости и тангажа
-  const lift=f.speed*0.06+f.pitch*f.speed*0.3;
-  ag.position.y+=lift-0.008;
+  const lift=f.speed*0.05+f.pitch*f.speed*0.25;
+  ag.position.y+=lift-0.006;
   
   if(ag.position.y<-4.6){ag.position.y=-4.6;if(f.pitch<0)f.pitch*=-0.3;if(f.speed>0.3)f.speed*=0.95;}
   if(ag.position.y>30)ag.position.y=30;
   
-  // Камера
   if(window.viewMode===0){
     const off=new THREE.Vector3(0,4,12).applyQuaternion(ag.quaternion);
-    cam.position.lerp(ag.position.clone().add(off),0.06);
-    ctrl.target.lerp(ag.position.clone(),0.1);
-  }else if(window.viewMode===1){
-    const off=new THREE.Vector3(15,2.5,0).applyQuaternion(ag.quaternion);
     cam.position.lerp(ag.position.clone().add(off),0.05);
     ctrl.target.lerp(ag.position.clone(),0.08);
+  }else if(window.viewMode===1){
+    const off=new THREE.Vector3(15,2.5,0).applyQuaternion(ag.quaternion);
+    cam.position.lerp(ag.position.clone().add(off),0.04);
+    ctrl.target.lerp(ag.position.clone(),0.06);
   }else{if(!ctrl.enabled){ctrl.enabled=true;ctrl.target.copy(ag.position);}}
 };
