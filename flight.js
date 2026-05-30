@@ -1,4 +1,4 @@
-// flight.js — полёт
+// flight.js — полёт (управление мягче)
 
 import * as THREE from 'three';
 
@@ -45,8 +45,11 @@ window.showMobileControls = function () {
     b.addEventListener('pointerleave', r);
     b.addEventListener('pointercancel', r);
   };
-  bind('cu', 'arrowup'); bind('cd', 'arrowdown');
-  bind('cl', 'arrowleft'); bind('cr', 'arrowright');
+  // ▲ = нос вверх, ▼ = нос вниз
+  bind('cu', 'arrowdown');
+  bind('cd', 'arrowup');
+  bind('cl', 'arrowleft');
+  bind('cr', 'arrowright');
   bind('cg', 'w');
 };
 
@@ -62,7 +65,6 @@ window.detachLooseParts = function (airplaneGroup, partsLayer, placedParts) {
   const detached = [], remaining = [];
   for (const p of placedParts) {
     const snap = p.userData.snapPos;
-    // Увеличил допуск: 0.8 вместо 0.3
     if (snap && p.position.distanceTo(snap) < 0.8) {
       remaining.push(p);
     } else {
@@ -129,30 +131,54 @@ window.exitFlight = function (airplaneGroup, camera, controls) {
 window.updateFlight = function (airplaneGroup, camera, controls, dt) {
   if (!window.isFlying || !window.flyData) return;
   const k = window.keys, f = window.flyData;
-  f.speed += ((k['w']?1:0)-(k['s']?1:0)) * 0.015;
-  f.speed = Math.max(0, Math.min(f.speed, 0.7));
-  if (f.speed < 0.08 && !k['w'] && !k['s'] && airplaneGroup.position.y < -3) f.speed += 0.004;
-  f.roll += ((k['a']?1:0)-(k['d']?1:0)) * 0.02;
-  f.pitch += ((k['arrowup']?1:0)-(k['arrowdown']?1:0)) * 0.015;
-  f.yaw += ((k['arrowleft']?1:0)-(k['arrowright']?1:0)) * 0.01;
-  f.roll *= 0.97; f.pitch *= 0.97; f.yaw *= 0.97;
+  
+  // Газ
+  f.speed += ((k['w']?1:0)-(k['s']?1:0)) * 0.012;
+  f.speed = Math.max(0, Math.min(f.speed, 0.6));
+  if (f.speed < 0.08 && !k['w'] && !k['s'] && airplaneGroup.position.y < -3) f.speed += 0.003;
+  
+  // Крен (A/D) — мягче
+  f.roll += ((k['a']?1:0)-(k['d']?1:0)) * 0.012;
+  
+  // Тангаж (стрелки) — МЯГЧЕ В 2 РАЗА
+  f.pitch += ((k['arrowup']?1:0)-(k['arrowdown']?1:0)) * 0.008;
+  
+  // Рыскание (стрелки влево/вправо) — МЯГЧЕ
+  f.yaw += ((k['arrowleft']?1:0)-(k['arrowright']?1:0)) * 0.006;
+  
+  // Затухание
+  f.roll *= 0.97;
+  f.pitch *= 0.97;
+  f.yaw *= 0.97;
+  
   airplaneGroup.rotation.z = f.roll;
   airplaneGroup.rotation.x = f.pitch;
   airplaneGroup.rotation.y += f.yaw;
-  const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(airplaneGroup.quaternion);
+  
+  // Движение вперёд (нос = -Z)
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(airplaneGroup.quaternion);
   airplaneGroup.position.add(fwd.multiplyScalar(f.speed));
-  airplaneGroup.position.y += f.pitch * f.speed * 0.25 - 0.015 + f.speed * 0.036;
-  if (airplaneGroup.position.y < -4.6) { airplaneGroup.position.y = -4.6; if (f.pitch<0) f.pitch *= -0.3; if (f.speed>0.3) f.speed *= 0.95; }
-  if (airplaneGroup.position.y > 20) airplaneGroup.position.y = 20;
-
+  
+  // Подъёмная сила + гравитация
+  airplaneGroup.position.y += f.pitch * f.speed * 0.2 - 0.01 + f.speed * 0.03;
+  
+  // Ограничения по высоте
+  if (airplaneGroup.position.y < -4.6) {
+    airplaneGroup.position.y = -4.6;
+    if (f.pitch < 0) f.pitch *= -0.3;
+    if (f.speed > 0.3) f.speed *= 0.95;
+  }
+  if (airplaneGroup.position.y > 25) airplaneGroup.position.y = 25;
+  
+  // Камера — ДАЛЬШЕ ОТ САМОЛЁТА
   if (window.viewMode === 0) {
-    const off = new THREE.Vector3(0,2.5,7).applyQuaternion(airplaneGroup.quaternion);
-    camera.position.lerp(airplaneGroup.position.clone().add(off), 0.1);
-    controls.target.lerp(airplaneGroup.position.clone(), 0.15);
-  } else if (window.viewMode === 1) {
-    const off = new THREE.Vector3(8,1.5,0).applyQuaternion(airplaneGroup.quaternion);
+    const off = new THREE.Vector3(0, 3.5, 10).applyQuaternion(airplaneGroup.quaternion);
     camera.position.lerp(airplaneGroup.position.clone().add(off), 0.08);
-    controls.target.lerp(airplaneGroup.position.clone(), 0.1);
+    controls.target.lerp(airplaneGroup.position.clone(), 0.12);
+  } else if (window.viewMode === 1) {
+    const off = new THREE.Vector3(12, 2, 0).applyQuaternion(airplaneGroup.quaternion);
+    camera.position.lerp(airplaneGroup.position.clone().add(off), 0.06);
+    controls.target.lerp(airplaneGroup.position.clone(), 0.08);
   } else {
     if (!controls.enabled) { controls.enabled = true; controls.target.copy(airplaneGroup.position); }
   }
