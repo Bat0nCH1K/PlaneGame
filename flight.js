@@ -1,4 +1,4 @@
-// flight.js v3.0 — простая авиа-физика
+// flight.js v3.1 — тангаж через кватернион (всегда относительно самолёта)
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -50,10 +50,7 @@ window.showMobileControls = function() {
   createThrottleSlider();
   mobileCtrl = document.createElement('div');
   mobileCtrl.className = 'mobile-ctrl-container';
-  mobileCtrl.innerHTML = `
-    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div>
-    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cr">▶</button></div>
-    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>`;
+  mobileCtrl.innerHTML = '<div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cr">▶</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>';
   document.body.appendChild(mobileCtrl);
   const bind = (id, key) => {
     const b = document.getElementById(id);
@@ -137,7 +134,6 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
   const agil = { small: 1.2, med: 1.0, big: 0.8 };
   window.flyData = {
     speed: 0.15,
-    roll: 0, pitch: 0, yaw: 0,
     maxSpeed: maxSp[window.currentFuselage],
     agility: agil[window.currentFuselage]
   };
@@ -182,22 +178,22 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const targetSpeed = window.throttle * f.maxSpeed;
   f.speed += (targetSpeed - f.speed) * 2.0 * dt;
 
-  // Управление — простые углы Эйлера
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 1.5 * a;
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.8 * a;
-  const rollInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.5 * a;
+  // Тангаж — всегда относительно самолёта (кватернион вокруг локальной оси X)
+  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 1.5 * a * dt;
+  const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchInput);
+  ag.quaternion.multiply(pitchQ);
 
-  // Затухание
-  f.pitch += (pitchInput - f.pitch) * 3.0 * dt;
-  f.yaw += (yawInput - f.yaw) * 2.0 * dt;
-  f.roll += (rollInput - f.roll) * 3.0 * dt;
+  // Рыскание — вокруг мировой оси Y
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.8 * a * dt;
+  const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawInput);
+  ag.quaternion.premultiply(yawQ);
 
-  // Применяем углы
-  ag.rotation.x += f.pitch * dt;
-  ag.rotation.y += f.yaw * dt;
-  ag.rotation.z = f.roll;
+  // Крен (визуальный)
+  const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.3;
+  f._roll = (f._roll || 0) + (rollTarget - (f._roll || 0)) * 5 * dt;
+  ag.rotation.z = f._roll;
 
-  // Движение вперёд
+  // Вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
   ag.position.add(fwd.multiplyScalar(f.speed * dt * 60));
 
@@ -212,12 +208,14 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   // Земля
   if (ag.position.y < -4.5) {
     ag.position.y = -4.5;
-    ag.rotation.x *= 0.3;
-    ag.rotation.z *= 0.3;
+    const e = new THREE.Euler().setFromQuaternion(ag.quaternion, 'YXZ');
+    e.x *= 0.5;
+    e.z *= 0.5;
+    ag.quaternion.setFromEuler(e);
     f.speed *= 0.9;
   }
 
-  if (ag.position.y > 50) ag.position.y = 50;
+  if (ag.position.y > 60) ag.position.y = 60;
 
   // Камера
   if (window.viewMode === 0) {
