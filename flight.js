@@ -1,4 +1,4 @@
-// flight.js v2.2
+// flight.js v2.3
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -130,9 +130,10 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     }
   }
   window.isFlying = true;
-  const sp = { small: 0.6, med: 0.8, big: 1.0 };
-  const agil = { small: 1.2, med: 0.8, big: 0.5 };
-  window.flyData = { speed: 0.3, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
+  // Лёгкий — самый быстрый, тяжёлый — самый медленный
+  const sp = { small: 1.2, med: 0.9, big: 0.6 };
+  const agil = { small: 1.5, med: 1.0, big: 0.6 };
+  window.flyData = { speed: 0, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
   window.viewMode = 0;
   window.flyingDetached = det;
   ag.position.set(0, -4.5, 30);
@@ -143,7 +144,7 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
   const vb = document.getElementById('view-btn');
   if (vb) { vb.style.display = 'block'; vb.textContent = '📷 Сзади'; }
   const fb = document.getElementById('fly-btn');
-  if (fb) { fb.textContent = '🛬 ЗЕМЛЯ'; fb.style.background = '#e74c3c'; }
+  if (fb) { fb.textContent = '🛬 ЗЕМЛЯ'; fb.style.background = '#e74c3c'; fb.style.display = 'block'; }
   return true;
 };
 
@@ -161,7 +162,7 @@ window.exitFlight = function(ag, cam, ctrl) {
   const vb = document.getElementById('view-btn');
   if (vb) vb.style.display = 'none';
   const fb = document.getElementById('fly-btn');
-  if (fb) { fb.textContent = '✈️ ВЗЛЕТ'; fb.style.background = '#2ecc71'; }
+  if (fb) { fb.textContent = '✈️ ВЗЛЕТ'; fb.style.background = '#2ecc71'; fb.style.display = 'block'; }
 };
 
 window.updateFlight = function(ag, cam, ctrl, dt) {
@@ -170,28 +171,23 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const f = window.flyData;
   const a = f.agility;
 
-  // Газ — плавно к целевой скорости
+  // Скорость от ползунка
   const targetSpeed = window.throttle * f.maxSpeed;
   f.speed += (targetSpeed - f.speed) * 0.05;
 
-  // Тангаж
-  const pitchQ = new THREE.Quaternion();
+  // Тангаж — относительно самолёта
   const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.025 * a;
-  pitchQ.setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchInput);
+  const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchInput);
   ag.quaternion.multiply(pitchQ);
 
   // Рыскание
-  const yawQ = new THREE.Quaternion();
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.01 * a;
-  yawQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawInput);
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.012 * a;
+  const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawInput);
   ag.quaternion.multiply(yawQ);
 
-  // Крен — только визуальный
-  const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.4;
-  f.roll += (yawRate - f.roll) * 0.15;
-
-  // Извлекаем углы из кватерниона для визуального крена
-  const euler = new THREE.Euler().setFromQuaternion(ag.quaternion, 'YXZ');
+  // Крен — плавный, зависит от направления рыскания
+  const targetRoll = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.5;
+  f.roll += (targetRoll - f.roll) * 0.1;
   ag.rotation.z = f.roll;
 
   // Вперёд
@@ -201,15 +197,14 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   // Гравитация
   ag.position.y -= 9.8 * dt;
 
-  // Подъёмная сила (зависит от скорости)
-  if (f.speed > 0.2) {
-    ag.position.y += (f.speed - 0.2) * 0.7 * dt * 60;
+  // Подъёмная сила
+  if (f.speed > 0.15) {
+    ag.position.y += (f.speed - 0.15) * 0.8 * dt * 60;
   }
 
   // Земля
   if (ag.position.y < -4.5) {
     ag.position.y = -4.5;
-    // Мягкое гашение вращения при касании
     const e = new THREE.Euler().setFromQuaternion(ag.quaternion, 'YXZ');
     e.x *= 0.3;
     e.z *= 0.3;
