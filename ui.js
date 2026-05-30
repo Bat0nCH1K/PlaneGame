@@ -1,144 +1,34 @@
-// ui.js — кнопки, версия, чейнджлог, цикл
-
+// ui.js v1.2.0
 import * as THREE from 'three';
 
-window.selectedPartType = 'wing';
+window.selectedPartType='wing';
+const mi=document.getElementById('mode-indicator'),vb=document.getElementById('view-btn'),fb=document.getElementById('fly-btn'),rb=document.getElementById('reset-btn');
+const bw=document.getElementById('btn-wing'),bt=document.getElementById('btn-tail'),be=document.getElementById('btn-engine');
+const bs=document.getElementById('btn-fus-small'),bm=document.getElementById('btn-fus-med'),bb=document.getElementById('btn-fus-big');
+const nc=document.getElementById('nudge-controls'),sb=document.getElementById('snap-btn'),id=document.getElementById('instr');
+const vg=document.getElementById('version-badge'),vp=document.getElementById('changelog-popup'),vl=document.getElementById('changelog-list');
 
-const modeInd = document.getElementById('mode-indicator');
-const viewBtn = document.getElementById('view-btn');
-const flyBtn = document.getElementById('fly-btn');
-const resetBtn = document.getElementById('reset-btn');
-const btnW = document.getElementById('btn-wing');
-const btnT = document.getElementById('btn-tail');
-const btnE = document.getElementById('btn-engine');
-const nudgeCtrl = document.getElementById('nudge-controls');
-const snapBtn = document.getElementById('snap-btn');
-const instrDiv = document.getElementById('instr');
-const vBadge = document.getElementById('version-badge');
-const vPopup = document.getElementById('changelog-popup');
-const vList = document.getElementById('changelog-list');
+function sa(t){[bw,bt,be].forEach(b=>b.classList.remove('active'));if(t==='wing')bw.classList.add('active');if(t==='tail')bt.classList.add('active');if(t==='engine')be.classList.add('active');window.selectedPartType=t;}
+function sf(t){[bs,bm,bb].forEach(b=>b.classList.remove('active'));if(t==='small')bs.classList.add('active');if(t==='med')bm.classList.add('active');if(t==='big')bb.classList.add('active');}
+bw.addEventListener('click',()=>sa('wing'));bt.addEventListener('click',()=>sa('tail'));be.addEventListener('click',()=>sa('engine'));
+bs.addEventListener('click',()=>{sf('small');window.setFuselage('small');});bm.addEventListener('click',()=>{sf('med');window.setFuselage('med');});bb.addEventListener('click',()=>{sf('big');window.setFuselage('big');});sf('med');
 
-function setActive(t) {
-  [btnW,btnT,btnE].forEach(b=>b.classList.remove('active'));
-  if (t==='wing') btnW.classList.add('active');
-  if (t==='tail') btnT.classList.add('active');
-  if (t==='engine') btnE.classList.add('active');
-  window.selectedPartType = t;
-}
-btnW.addEventListener('click', ()=>setActive('wing'));
-btnT.addEventListener('click', ()=>setActive('tail'));
-btnE.addEventListener('click', ()=>setActive('engine'));
-
-// ВЗЛЁТ / ПОСАДКА
-flyBtn.addEventListener('click', ()=>{
-  if (window.isFlying) {
-    window.exitFlight(window.airplaneGroup, window.camera, window.controls);
-    flyBtn.textContent = '✈️ ВЗЛЕТ'; flyBtn.style.background = '#2ecc71';
-    modeInd.textContent = '🛠️ СБОРКА'; modeInd.style.background = 'rgba(0,0,0,0.7)';
-    document.body.classList.remove('flying');
-    instrDiv.textContent = '👆 Тап по фюзеляжу: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать';
-    if (window.selectedPart) { nudgeCtrl.style.display = 'flex'; snapBtn.style.display = 'block'; }
-    if (viewBtn) viewBtn.style.display = 'none';
-    for (const d of window.flyingDetached) { window.partsLayer.add(d.part); window.placedParts.push(d.part); }
-    window.flyingDetached.length = 0;
-    return;
-  }
-  if (window.startFlight(window.airplaneGroup, window.camera, window.controls, window.placedParts, window.partsLayer)) {
-    flyBtn.textContent = '🛬 ЗЕМЛЯ'; flyBtn.style.background = '#e74c3c';
-    modeInd.textContent = '✈️ ПОЛЕТ'; modeInd.style.background = '#e74c3c';
-    document.body.classList.add('flying');
-    instrDiv.textContent = '🎮 Кнопки внизу | W/S: газ | Стрелки: управление | 📷: смена вида';
-    nudgeCtrl.style.display = 'none'; snapBtn.style.display = 'none';
-    if (viewBtn) { viewBtn.style.display = 'block'; viewBtn.textContent = '📷 Сзади'; }
-  }
+fb.addEventListener('click',()=>{
+  if(window.isFlying){window.exitFlight(window.airplaneGroup,window.camera,window.controls);fb.textContent='✈️ ВЗЛЕТ';fb.style.background='#2ecc71';mi.textContent='🛠️ СБОРКА';mi.style.background='rgba(0,0,0,0.7)';id.textContent='👆 Тап: деталь | Кнопки: двигать/приварить | ✌️: вращать';if(window.selectedPart){nc.style.display='flex';sb.style.display='block';}if(vb)vb.style.display='none';for(const d of window.flyingDetached){window.partsLayer.add(d.part);window.placedParts.push(d.part);}window.flyingDetached.length=0;return;}
+  if(window.startFlight(window.airplaneGroup,window.camera,window.controls,window.placedParts,window.partsLayer)){fb.textContent='🛬 ЗЕМЛЯ';fb.style.background='#e74c3c';mi.textContent='✈️ ПОЛЕТ';mi.style.background='#e74c3c';id.textContent='🎮 ▲▼: тангаж | ◀▶: поворот | ⚡: газ | 📷: вид';nc.style.display='none';sb.style.display='none';if(vb){vb.style.display='block';vb.textContent='📷 Сзади';}}
 });
 
-// СБРОС
-resetBtn.addEventListener('click', ()=>{
-  if (window.isFlying) {
-    window.exitFlight(window.airplaneGroup, window.camera, window.controls);
-    flyBtn.textContent = '✈️ ВЗЛЕТ'; flyBtn.style.background = '#2ecc71';
-    modeInd.textContent = '🛠️ СБОРКА'; modeInd.style.background = 'rgba(0,0,0,0.7)';
-    document.body.classList.remove('flying');
-    instrDiv.textContent = '👆 Тап по фюзеляжу: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать';
-    if (viewBtn) viewBtn.style.display = 'none';
-    for (const d of window.flyingDetached) { window.partsLayer.add(d.part); window.placedParts.push(d.part); }
-    window.flyingDetached.length = 0;
-  }
-  window.clearAllParts();
-  setActive('wing');
-  nudgeCtrl.style.display = 'none'; snapBtn.style.display = 'none';
-});
+rb.addEventListener('click',()=>{if(window.isFlying){window.exitFlight(window.airplaneGroup,window.camera,window.controls);fb.textContent='✈️ ВЗЛЕТ';fb.style.background='#2ecc71';mi.textContent='🛠️ СБОРКА';mi.style.background='rgba(0,0,0,0.7)';id.textContent='👆 Тап: деталь | Кнопки: двигать/приварить | ✌️: вращать';if(vb)vb.style.display='none';for(const d of window.flyingDetached){window.partsLayer.add(d.part);window.placedParts.push(d.part);}window.flyingDetached.length=0;}window.clearAllParts();sa('wing');nc.style.display='none';sb.style.display='none';});
 
-// NUDGE КНОПКИ
-document.querySelectorAll('.nudge-btn').forEach(b=>{
-  b.addEventListener('pointerdown', e=>{
-    e.preventDefault(); e.stopPropagation();
-    if (!window.selectedPart || window.isFlying) return;
-    const axis = b.dataset.axis, dir = parseFloat(b.dataset.dir);
-    window.selectedPart.position[axis] += dir * 0.08;
-    window.selectedPart.position.y = Math.max(-2.5, Math.min(3, window.selectedPart.position.y));
-    window.selectedPart.position.x = Math.max(-2.5, Math.min(2.5, window.selectedPart.position.x));
-    window.selectedPart.position.z = Math.max(-2, Math.min(2, window.selectedPart.position.z));
-  });
-});
+document.querySelectorAll('.nudge-btn').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(!window.selectedPart||window.isFlying)return;const ax=b.dataset.axis,dr=parseFloat(b.dataset.dir);window.selectedPart.position[ax]+=dr*0.08;window.selectedPart.position.y=Math.max(-2.5,Math.min(3,window.selectedPart.position.y));window.selectedPart.position.x=Math.max(-2.5,Math.min(2.5,window.selectedPart.position.x));window.selectedPart.position.z=Math.max(-2,Math.min(2,window.selectedPart.position.z));});});
+sb.addEventListener('click',()=>{if(!window.selectedPart||window.isFlying)return;const sn=window.selectedPart.userData.snapPos;if(sn)window.selectedPart.position.copy(sn);});
 
-// КНОПКА ПРИВАРИТЬ
-snapBtn.addEventListener('click', () => {
-  if (!window.selectedPart || window.isFlying) return;
-  const snap = window.selectedPart.userData.snapPos;
-  if (snap) {
-    window.selectedPart.position.copy(snap);
-  }
-});
+sa('wing');const demo=window.createPart('wing');demo.position.set(0,0.05,0);window.partsLayer.add(demo);window.placedParts.push(demo);window.selectPart(demo);
 
-// СТАРТОВАЯ ДЕТАЛЬ
-setActive('wing');
-const demo = window.createPart('wing');
-demo.position.set(0,0.05,0);
-window.partsLayer.add(demo);
-window.placedParts.push(demo);
-window.selectPart(demo);
+const VER='1.2.0';
+const cl=[{v:'1.2.0',t:'major',d:'Цвета фюзеляжей, лимиты деталей, шасси, физика исправлена, холмы не на полосе.'},{v:'1.1.0',t:'major',d:'Три фюзеляжа. Ландшафт 200×200.'},{v:'1.0.5',t:'minor',d:'Кнопка «Приварить».'},{v:'1.0.4',t:'patch',d:'Индикатор отдельно.'}];
+function rcl(){vl.innerHTML='';cl.forEach(e=>{const d=document.createElement('div');d.className='changelog-entry '+e.t;d.innerHTML='<div class="changelog-version">v'+e.v+' <span class="tag '+e.t+'">'+(e.t==='major'?'БО':e.t==='minor'?'МО':'П')+'+1</span></div><div class="changelog-desc">'+e.d+'</div>';vl.appendChild(d);});}
+vg.textContent='v'+VER;vg.addEventListener('click',e=>{e.stopPropagation();const vis=vp.style.display==='block';vp.style.display=vis?'none':'block';if(!vis)rcl();});
+document.addEventListener('click',e=>{if(!vg.contains(e.target)&&!vp.contains(e.target))vp.style.display='none';});
 
-// ВЕРСИЯ
-const VERSION = '1.0.5';
-const changelog = [
-  {version:'1.0.0',type:'major',desc:'3D-конструктор: сборка самолёта, режим полёта.'},
-  {version:'1.0.1',type:'minor',desc:'Лимит деталей, убраны шарики, нос вперёд, три вида камеры.'},
-  {version:'1.0.2',type:'patch',desc:'Исправлен баг загрузки, индикатор не перекрывается.'},
-  {version:'1.0.3',type:'patch',desc:'Код разбит на 4 модуля — стабильность.'},
-  {version:'1.0.4',type:'patch',desc:'Индикатор и кнопка вида в отдельном блоке.'},
-  {version:'1.0.5',type:'minor',desc:'Добавлена кнопка «Приварить», улучшено управление.'}
-];
-function renderCL() {
-  vList.innerHTML = '';
-  changelog.forEach(e=>{
-    const d = document.createElement('div');
-    d.className = `changelog-entry ${e.type}`;
-    d.innerHTML = `<div class="changelog-version">v${e.version} <span class="tag ${e.type}">${e.type==='major'?'БО':e.type==='minor'?'МО':'П'}+1</span></div><div class="changelog-desc">${e.desc}</div>`;
-    vList.appendChild(d);
-  });
-}
-vBadge.textContent = `v${VERSION}`;
-vBadge.addEventListener('click', e=>{
-  e.stopPropagation();
-  const vis = vPopup.style.display === 'block';
-  vPopup.style.display = vis ? 'none' : 'block';
-  if (!vis) renderCL();
-});
-document.addEventListener('click', e=>{
-  if (!vBadge.contains(e.target) && !vPopup.contains(e.target)) vPopup.style.display = 'none';
-});
-
-// ИГРОВОЙ ЦИКЛ
-const clock = new THREE.Clock();
-function loop() {
-  requestAnimationFrame(loop);
-  const dt = Math.min(clock.getDelta(), 0.1);
-  window.updateFlight(window.airplaneGroup, window.camera, window.controls, dt);
-  window.updateDetached(window.flyingDetached, dt);
-  window.controls.update();
-  window.renderer.render(window.scene, window.camera);
-  window.labelRenderer.render(window.scene, window.camera);
-}
-loop();
+const clk=new THREE.Clock();(function l(){requestAnimationFrame(l);const dt=Math.min(clk.getDelta(),0.1);window.updateFlight(window.airplaneGroup,window.camera,window.controls,dt);window.updateDetached(window.flyingDetached,dt);window.controls.update();window.renderer.render(window.scene,window.camera);window.labelRenderer.render(window.scene,window.camera);})();
