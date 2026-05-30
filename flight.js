@@ -1,4 +1,4 @@
-// flight.js v1.2.2
+// flight.js v1.2.3
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -38,11 +38,10 @@ window.showMobileControls = function() {
     b.addEventListener('pointerleave', r);
     b.addEventListener('pointercancel', r);
   };
-  // ▲ = нос вверх, ▼ = нос вниз
   bind('cu', 'pitchup');
   bind('cd', 'pitchdown');
-  bind('cl', 'arrowleft');
-  bind('cr', 'arrowright');
+  bind('cl', 'yawleft');
+  bind('cr', 'yawright');
   bind('cg', 'w');
 };
 
@@ -54,18 +53,22 @@ window.hideMobileControls = function() {
 window.addEventListener('keydown', e => {
   if (e.key === 'ArrowUp') { window.keys['pitchup'] = true; e.preventDefault(); }
   else if (e.key === 'ArrowDown') { window.keys['pitchdown'] = true; e.preventDefault(); }
+  else if (e.key === 'ArrowLeft') { window.keys['yawleft'] = true; e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { window.keys['yawright'] = true; e.preventDefault(); }
   else window.keys[e.key.toLowerCase()] = true;
 });
 window.addEventListener('keyup', e => {
   if (e.key === 'ArrowUp') { window.keys['pitchup'] = false; e.preventDefault(); }
   else if (e.key === 'ArrowDown') { window.keys['pitchdown'] = false; e.preventDefault(); }
+  else if (e.key === 'ArrowLeft') { window.keys['yawleft'] = false; e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { window.keys['yawright'] = false; e.preventDefault(); }
   else window.keys[e.key.toLowerCase()] = false;
 });
 
 window.detachLooseParts = function(ag, pl, pp) {
   const d = [], r = [];
   for (const p of pp) {
-    if (p.userData.snapPos && p.position.distanceTo(p.userData.snapPos) < 0.8) r.push(p);
+    if (p.userData.snapPos && p.position.distanceTo(p.userData.snapPos) < 1.2) r.push(p);
     else {
       const w = new THREE.Vector3(); p.getWorldPosition(w);
       const q = new THREE.Quaternion(); p.getWorldQuaternion(q);
@@ -143,25 +146,30 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const a = f.agility;
 
   // Газ
-  f.speed += ((k['w'] ? 1 : 0) - (k['s'] ? 1 : 0)) * 0.01;
-  f.speed = Math.max(0, Math.min(f.speed, f.maxSpeed));
+  const throttle = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
+  f.speed += throttle * 0.01;
+  f.speed = Math.max(0.02, Math.min(f.speed, f.maxSpeed));
 
-  // Замедление (тормоз)
-  f.speed *= 0.998;
-  if (f.speed < 0.01 && ag.position.y < -3) f.speed = 0.01;
+  // Торможение — СИЛЬНЕЕ
+  f.speed *= 0.996;
 
-  // Тангаж — относительно самолёта (нос вверх/вниз)
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.012 * a;
+  // Тангаж — относительно самолёта
+  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.015 * a;
   f.pitch += pitchInput;
-  f.pitch = Math.max(-0.6, Math.min(0.6, f.pitch));
+  f.pitch = Math.max(-0.5, Math.min(0.5, f.pitch));
+  // Затухание тангажа
+  f.pitch *= 0.995;
 
-  // Рыскание — МЯГЧЕ
-  f.yaw += ((k['arrowleft'] ? 1 : 0) - (k['arrowright'] ? 1 : 0)) * 0.004 * a;
-  f.yaw *= 0.96;
+  // Рыскание — ОЧЕНЬ МЯГКО
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.003 * a;
+  f.yaw += yawInput;
+  f.yaw *= 0.95;
+  // Ограничение угловой скорости
+  f.yaw = Math.max(-0.03, Math.min(0.03, f.yaw));
 
-  // Крен в нужную сторону
-  const targetRoll = f.yaw * 5;
-  f.roll += (targetRoll - f.roll) * 0.05;
+  // Крен пропорционален рысканию
+  const targetRoll = f.yaw * 8;
+  f.roll += (targetRoll - f.roll) * 0.04;
 
   ag.rotation.z = f.roll;
   ag.rotation.x = f.pitch;
@@ -172,12 +180,12 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   ag.position.add(fwd.multiplyScalar(f.speed));
 
   // Подъёмная сила
-  const lift = f.speed * 0.06 + f.pitch * f.speed * 0.2;
-  ag.position.y += lift - 0.008;
+  const lift = f.speed * 0.08 + f.pitch * f.speed * 0.25;
+  ag.position.y += lift - 0.01;
 
-  // Падает при маленькой скорости
-  if (f.speed < 0.08 && ag.position.y > -4.5) {
-    ag.position.y -= 0.02;
+  // Падает при скорости ниже 0.1
+  if (f.speed < 0.1 && ag.position.y > -4.5) {
+    ag.position.y -= 0.04;
   }
 
   if (ag.position.y < -4.6) {
