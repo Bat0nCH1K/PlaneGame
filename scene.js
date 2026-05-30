@@ -15,9 +15,9 @@ window.scene = scene;
 const starsGeo = new THREE.BufferGeometry();
 const starsArr = new Float32Array(900);
 for (let i = 0; i < 900; i += 3) {
-  starsArr[i] = (Math.random() - 0.5) * 400;
-  starsArr[i + 1] = Math.random() * 150 + 30;
-  starsArr[i + 2] = (Math.random() - 0.5) * 400;
+  starsArr[i] = (Math.random() - 0.5) * 500;
+  starsArr[i + 1] = Math.random() * 200 + 40;
+  starsArr[i + 2] = (Math.random() - 0.5) * 500;
 }
 starsGeo.setAttribute('position', new THREE.BufferAttribute(starsArr, 3));
 scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.3 })));
@@ -28,38 +28,46 @@ const sun = new THREE.DirectionalLight(0xffffff, 1);
 sun.position.set(20, 30, 10);
 scene.add(sun);
 
-// Земля
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(80, 80),
-  new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 0.9 })
-);
+// ЗЕМЛЯ — БОЛЬШАЯ И В КЛЕТКУ
+const gridSize = 120;
+const gridDivs = 20;
+const groundGeo = new THREE.PlaneGeometry(gridSize, gridSize, gridDivs, gridDivs);
+const groundMat = new THREE.MeshStandardMaterial({ 
+  color: 0x4a7c3f, 
+  roughness: 0.9,
+  wireframe: false
+});
+const ground = new THREE.Mesh(groundGeo, groundMat);
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -5;
 scene.add(ground);
 
-// Взлётная полоса
-const runway = new THREE.Mesh(
-  new THREE.PlaneGeometry(4, 25),
-  new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 })
-);
+// Сетка-разметка (линии)
+const gridHelper = new THREE.GridHelper(gridSize, gridDivs, 0x2d5a1e, 0x2d5a1e);
+gridHelper.position.y = -4.99;
+scene.add(gridHelper);
+
+// Взлётная полоса (шире и длиннее)
+const runwayGeo = new THREE.PlaneGeometry(6, 30);
+const runway = new THREE.Mesh(runwayGeo, new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 }));
 runway.rotation.x = -Math.PI / 2;
-runway.position.set(0, -4.99, 10);
+runway.position.set(0, -4.98, 10);
 scene.add(runway);
 
-// Разметка
-for (let i = 2; i <= 18; i += 3) {
+// Разметка полосы
+for (let i = 0; i <= 20; i += 3) {
   const stripe = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 0.3),
+    new THREE.PlaneGeometry(1.5, 0.3),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
   );
   stripe.rotation.x = -Math.PI / 2;
-  stripe.position.set(0, -4.98, i);
+  stripe.position.set(0, -4.97, i);
   scene.add(stripe);
 }
 
-// Камера
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.3, 300);
-camera.position.set(8, 5, 10);
+// Камера — ДАЛЬШЕ
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.3, 500);
+camera.position.set(12, 8, 16);
 camera.lookAt(0, 0, 0);
 window.camera = camera;
 
@@ -70,7 +78,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 window.renderer = renderer;
 
-// CSS2D рендер (для меток)
+// CSS2D рендер
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(innerWidth, innerHeight);
 labelRenderer.domElement.style.position = 'absolute';
@@ -87,8 +95,8 @@ controls.dampingFactor = 0.08;
 controls.target.set(0, 0.3, 0);
 controls.rotateSpeed = isMobile ? 0.7 : 0.6;
 controls.zoomSpeed = isMobile ? 1.0 : 1.2;
-controls.minDistance = 3;
-controls.maxDistance = 30;
+controls.minDistance = 5;
+controls.maxDistance = 40;
 controls.maxPolarAngle = Math.PI * 0.75;
 controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
