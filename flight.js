@@ -1,4 +1,4 @@
-// flight.js v4.2 — тангаж через локальную ось, взлёт с поднятым носом
+// flight.js v4.3 — всё починено
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -131,11 +131,11 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
   }
   window.isFlying = true;
   window.flyData = {
-    speed: 0,
+    speed: 0.1,
     maxSpeed: { small: 0.6, med: 0.5, big: 0.4 }[window.currentFuselage],
     agility: { small: 1.2, med: 1.0, big: 0.8 }[window.currentFuselage],
-    onGround: true,
-    verticalSpeed: 0
+    verticalSpeed: 0,
+    onGround: true
   };
   window.viewMode = 0;
   window.flyingDetached = det;
@@ -174,42 +174,47 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const f = window.flyData;
   const a = f.agility;
 
-  f.speed += (window.throttle * f.maxSpeed - f.speed) * 2.0 * dt;
+  // Скорость
+  const target = window.throttle * f.maxSpeed;
+  f.speed += (target - f.speed) * 3.0 * dt;
 
+  // Управление через кватернионы
+  const pitchQ = new THREE.Quaternion();
+  const pitchAmount = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.8 * a * dt;
+  pitchQ.setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchAmount);
+  ag.quaternion.multiply(pitchQ);
+
+  const yawQ = new THREE.Quaternion();
+  const yawAmount = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.8 * a * dt;
+  yawQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAmount);
+  ag.quaternion.premultiply(yawQ);
+
+  // Крен
+  const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * Math.PI / 3;
+  ag.rotation.z += (rollTarget - ag.rotation.z) * 5 * dt;
+
+  // Вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
   ag.position.x += fwd.x * f.speed * 60 * dt;
   ag.position.z += fwd.z * f.speed * 60 * dt;
 
-  // Рыскание — мировая ось Y
-  const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 1.2 * a * dt;
-  ag.rotateY(yawRate);
-
-  // Тангаж — ЛОКАЛЬНАЯ ось X
-  const pitchRate = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.8 * a * dt;
-  ag.rotateX(pitchRate);
-
-  // Крен: макс 90°, сервопривод
-  const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * Math.PI / 2;
-  ag.rotation.z += (rollTarget - ag.rotation.z) * 4 * dt;
-
-  const speed = f.speed;
-  const pitch = ag.rotation.x;
-
+  // Вертикальная физика
+  const angleOfAttack = -Math.sin(ag.rotation.x);
+  
   if (ag.position.y <= -4.5) {
     ag.position.y = -4.5;
     f.verticalSpeed = 0;
     f.onGround = true;
-    // Взлёт: скорость > 0.15 и нос поднят (pitch отрицательный — нос вверх)
-    if (speed > 0.15 && pitch < -0.05) {
-      f.verticalSpeed = (speed - 0.15) * 8;
+    // Взлёт при скорости > 0.2 и поднятом носе
+    if (f.speed > 0.2 && angleOfAttack > 0.05) {
+      f.verticalSpeed = f.speed * angleOfAttack * 15;
       f.onGround = false;
     }
-    ag.rotation.z += (0 - ag.rotation.z) * 3 * dt;
+    ag.rotation.z *= 0.9;
   } else {
     f.onGround = false;
     f.verticalSpeed -= 9.8 * dt;
-    f.verticalSpeed += speed * 1.2 * dt;
-    if (speed < 0.1) f.verticalSpeed -= 15 * dt;
+    f.verticalSpeed += f.speed * angleOfAttack * 8 * dt;
   }
 
   ag.position.y += f.verticalSpeed * dt;
@@ -217,15 +222,11 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   if (ag.position.y < -4.5) {
     ag.position.y = -4.5;
     f.verticalSpeed = 0;
-    f.onGround = true;
   }
-  if (ag.position.y > 50) {
-    ag.position.y = 50;
-    f.verticalSpeed = Math.min(f.verticalSpeed, 0);
-  }
+  if (ag.position.y > 50) ag.position.y = 50;
 
-  const camBack = new THREE.Vector3(0, 3, 10);
-  camBack.applyQuaternion(ag.quaternion);
-  cam.position.lerp(ag.position.clone().add(camBack), 0.08);
+  // Камера
+  const off = new THREE.Vector3(0, 3, 10).applyQuaternion(ag.quaternion);
+  cam.position.lerp(ag.position.clone().add(off), 0.08);
   ctrl.target.lerp(ag.position.clone(), 0.1);
 };
