@@ -1,147 +1,82 @@
-// airplane.js — самолёт, детали, фюзеляжи
+// ui.js
 import * as THREE from 'three';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-const airplaneGroup=new THREE.Group();
-airplaneGroup.position.set(0,0,0);
-window.scene.add(airplaneGroup);
-window.airplaneGroup=airplaneGroup;
+window.selectedPartType='wing';
 
-let fuselageMesh,noseMesh,cockpitMesh;
-const hitTargets=[];
+const modeInd=document.getElementById('mode-indicator');
+const viewBtn=document.getElementById('view-btn');
+const flyBtn=document.getElementById('fly-btn');
+const resetBtn=document.getElementById('reset-btn');
+const btnW=document.getElementById('btn-wing');
+const btnT=document.getElementById('btn-tail');
+const btnE=document.getElementById('btn-engine');
+const btnFS=document.getElementById('btn-fus-small');
+const btnFM=document.getElementById('btn-fus-med');
+const btnFB=document.getElementById('btn-fus-big');
+const nudgeCtrl=document.getElementById('nudge-controls');
+const snapBtn=document.getElementById('snap-btn');
+const instrDiv=document.getElementById('instr');
+const vBadge=document.getElementById('version-badge');
+const vPopup=document.getElementById('changelog-popup');
+const vList=document.getElementById('changelog-list');
 
-window.currentFuselage='med';
+function setActive(t){[btnW,btnT,btnE].forEach(b=>b.classList.remove('active'));if(t==='wing')btnW.classList.add('active');if(t==='tail')btnT.classList.add('active');if(t==='engine')btnE.classList.add('active');window.selectedPartType=t;}
+function setFusActive(t){[btnFS,btnFM,btnFB].forEach(b=>b.classList.remove('active'));if(t==='small')btnFS.classList.add('active');if(t==='med')btnFM.classList.add('active');if(t==='big')btnFB.classList.add('active');}
 
-const FUSELAGE_TYPES={
-  small:{length:2.4,radius:0.4,color:0x44aacc,speed:0.5},
-  med:{length:3.2,radius:0.5,color:0x4488cc,speed:0.7},
-  big:{length:4.0,radius:0.65,color:0x4466aa,speed:1.0}
-};
+btnW.addEventListener('click',()=>setActive('wing'));
+btnT.addEventListener('click',()=>setActive('tail'));
+btnE.addEventListener('click',()=>setActive('engine'));
+btnFS.addEventListener('click',()=>{setFusActive('small');window.setFuselage('small');});
+btnFM.addEventListener('click',()=>{setFusActive('med');window.setFuselage('med');});
+btnFB.addEventListener('click',()=>{setFusActive('big');window.setFuselage('big');});
+setFusActive('med');
 
-window.setFuselage=function(type){
-  window.currentFuselage=type;
-  const cfg=FUSELAGE_TYPES[type];
-  
-  if(fuselageMesh)airplaneGroup.remove(fuselageMesh);
-  if(noseMesh)airplaneGroup.remove(noseMesh);
-  if(cockpitMesh)airplaneGroup.remove(cockpitMesh);
-  hitTargets.length=0;
-  
-  const fg=new THREE.CylinderGeometry(cfg.radius,cfg.radius*1.1,cfg.length,10);
-  fuselageMesh=new THREE.Mesh(fg,new THREE.MeshStandardMaterial({color:cfg.color,roughness:0.4,metalness:0.6}));
-  fuselageMesh.rotation.x=Math.PI/2;
-  airplaneGroup.add(fuselageMesh);
-  hitTargets.push(fuselageMesh);
-  
-  const ng=new THREE.SphereGeometry(cfg.radius,10,10,0,Math.PI*2,0,Math.PI/2);
-  noseMesh=new THREE.Mesh(ng,new THREE.MeshStandardMaterial({color:cfg.color+0x111133,roughness:0.3,metalness:0.7}));
-  noseMesh.position.z=-cfg.length/2-0.1;
-  noseMesh.rotation.x=Math.PI;
-  noseMesh.scale.set(0.9,0.9,0.5);
-  airplaneGroup.add(noseMesh);
-  hitTargets.push(noseMesh);
-  
-  const cg=new THREE.SphereGeometry(cfg.radius*0.8,10,10);
-  cockpitMesh=new THREE.Mesh(cg,new THREE.MeshStandardMaterial({color:0x88ccff,roughness:0.1,metalness:0.3,transparent:true,opacity:0.7}));
-  cockpitMesh.position.set(0,cfg.radius*0.8,-cfg.length*0.25);
-  cockpitMesh.scale.set(0.55,0.35,0.55);
-  airplaneGroup.add(cockpitMesh);
-  hitTargets.push(cockpitMesh);
-};
-
-window.setFuselage('med');
-
-// Детали
-const partsLayer=new THREE.Group();
-airplaneGroup.add(partsLayer);
-window.partsLayer=partsLayer;
-window.placedParts=[];
-window.selectedPart=null;
-const LIMITS={wing:2,tail:2,engine:2};
-
-function mkLabel(text){
-  const d=document.createElement('div');d.textContent=text;
-  d.style.cssText='color:white;font-weight:bold;font-size:10px;text-shadow:1px 1px 2px black;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:8px;';
-  const l=new CSS2DObject(d);l.userData.isLabel=true;return l;
-}
-
-window.createPart=function(type){
-  const g=new THREE.Group();g.userData={type,isPart:true};
-  if(type==='wing'){
-    const w=new THREE.Mesh(new THREE.BoxGeometry(2.5,0.08,0.7),new THREE.MeshStandardMaterial({color:0xe67e22,roughness:0.5,metalness:0.5}));
-    w.userData.isPartMesh=true;g.add(w);
-    const eg=new THREE.BoxGeometry(0.06,0.1,0.72),em=new THREE.MeshStandardMaterial({color:0xc0560a});
-    g.add(new THREE.Mesh(eg,em)).position.set(-1.25,0,0);
-    g.add(new THREE.Mesh(eg,em)).position.set(1.25,0,0);
-    g.userData.snapPos=new THREE.Vector3(0,0.05,0);
-  }else if(type==='tail'){
-    const h=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.06,0.35),new THREE.MeshStandardMaterial({color:0x9b59b6,roughness:0.5,metalness:0.5}));
-    h.userData.isPartMesh=true;g.add(h);
-    const v=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.5,0.35),new THREE.MeshStandardMaterial({color:0x9b59b6,roughness:0.5,metalness:0.5}));
-    v.position.y=0.3;v.userData.isPartMesh=true;g.add(v);
-    const cfg=FUSELAGE_TYPES[window.currentFuselage];
-    g.userData.snapPos=new THREE.Vector3(0,0.3,cfg.length/2+0.05);
-  }else{
-    const e=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.28,0.7,8),new THREE.MeshStandardMaterial({color:0xccccdd,roughness:0.3,metalness:0.8}));
-    e.rotation.x=Math.PI/2;e.userData.isPartMesh=true;g.add(e);
-    const s=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.04,6,12),new THREE.MeshStandardMaterial({color:0xe74c3c,roughness:0.2,metalness:0.3}));
-    s.rotation.y=Math.PI/2;s.userData.isPartMesh=true;g.add(s);
-    g.userData.snapPos=new THREE.Vector3(0.55,-0.4,0);
+flyBtn.addEventListener('click',()=>{
+  if(window.isFlying){
+    window.exitFlight(window.airplaneGroup,window.camera,window.controls);
+    flyBtn.textContent='✈️ ВЗЛЕТ';flyBtn.style.background='#2ecc71';modeInd.textContent='🛠️ СБОРКА';modeInd.style.background='rgba(0,0,0,0.7)';
+    document.body.classList.remove('flying');instrDiv.textContent='👆 Тап: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать';
+    if(window.selectedPart){nudgeCtrl.style.display='flex';snapBtn.style.display='block';}
+    if(viewBtn)viewBtn.style.display='none';
+    for(const d of window.flyingDetached){window.partsLayer.add(d.part);window.placedParts.push(d.part);}window.flyingDetached.length=0;return;
   }
-  const lb=mkLabel(type==='wing'?'🪽':type==='tail'?'🪁':'🚀');
-  lb.position.set(0,0.5,0);g.add(lb);
-  return g;
-};
-
-window.clearAllParts=function(){
-  while(window.placedParts.length){const p=window.placedParts.pop();p.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material)Array.isArray(c.material)?c.material.forEach(m=>m.dispose()):c.material.dispose();});partsLayer.remove(p);}
-  const rm=[];window.scene.children.forEach(c=>{if(c.userData?.isPart&&c!==airplaneGroup&&c!==partsLayer&&!airplaneGroup.children.includes(c))rm.push(c);});
-  rm.forEach(c=>{c.traverse(x=>{if(x.geometry)x.geometry.dispose();if(x.material)Array.isArray(x.material)?x.material.forEach(m=>m.dispose()):x.material.dispose();});window.scene.remove(c);});
-  window.selectedPart=null;
-  document.getElementById('nudge-controls').style.display='none';
-  document.getElementById('snap-btn').style.display='none';
-};
-
-window.selectPart=function(part){
-  if(window.selectedPart&&window.selectedPart!==part){window.selectedPart.traverse(c=>{if(c.userData?.isPartMesh&&c.material?.emissive)c.material.emissive.set(0x000000);});}
-  window.selectedPart=part;
-  if(part){part.traverse(c=>{if(c.userData?.isPartMesh&&c.material?.emissive)c.material.emissive.set(0x444444);});document.getElementById('nudge-controls').style.display='flex';document.getElementById('snap-btn').style.display='block';}
-  else{document.getElementById('nudge-controls').style.display='none';document.getElementById('snap-btn').style.display='none';}
-};
-
-// Перетаскивание
-const raycaster=new THREE.Raycaster();
-let dragged=null,wasOnPart=false;
-
-function getHits(e){
-  const r=window.renderer.domElement.getBoundingClientRect();
-  const m=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
-  raycaster.setFromCamera(m,window.camera);
-  return{fh:raycaster.intersectObjects(hitTargets,false),ph:raycaster.intersectObjects(window.placedParts,true)};
-}
-
-window.renderer.domElement.addEventListener('pointerdown',e=>{
-  if(window.isFlying||(e.pointerType==='touch'&&!e.isPrimary))return;
-  const{ph}=getHits(e);
-  if(ph.length){let o=ph[0].object;while(o&&!window.placedParts.includes(o))o=o.parent;if(o&&window.placedParts.includes(o)){dragged=o;window.selectPart(o);wasOnPart=true;document.getElementById('mode-indicator').textContent='📌 ТЯНИ';return;}}
-  wasOnPart=false;
+  if(window.startFlight(window.airplaneGroup,window.camera,window.controls,window.placedParts,window.partsLayer)){
+    flyBtn.textContent='🛬 ЗЕМЛЯ';flyBtn.style.background='#e74c3c';modeInd.textContent='✈️ ПОЛЕТ';modeInd.style.background='#e74c3c';
+    document.body.classList.add('flying');instrDiv.textContent='🎮 ▲▼: тангаж | ◀▶: поворот | ⚡: газ | 📷: вид';
+    nudgeCtrl.style.display='none';snapBtn.style.display='none';
+    if(viewBtn){viewBtn.style.display='block';viewBtn.textContent='📷 Сзади';}
+  }
 });
 
-window.renderer.domElement.addEventListener('pointermove',e=>{
-  if(!dragged||window.isFlying)return;
-  const r=window.renderer.domElement.getBoundingClientRect();
-  raycaster.setFromCamera(new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1),window.camera);
-  const hits=raycaster.intersectObjects(hitTargets,false);
-  if(hits.length){const pt=hits[0].point.clone();window.airplaneGroup.worldToLocal(pt);pt.y=Math.max(-2.5,Math.min(3,pt.y));pt.x=Math.max(-2.5,Math.min(2.5,pt.x));pt.z=Math.max(-2,Math.min(2,pt.z));dragged.position.copy(pt);}
+resetBtn.addEventListener('click',()=>{
+  if(window.isFlying){
+    window.exitFlight(window.airplaneGroup,window.camera,window.controls);
+    flyBtn.textContent='✈️ ВЗЛЕТ';flyBtn.style.background='#2ecc71';modeInd.textContent='🛠️ СБОРКА';modeInd.style.background='rgba(0,0,0,0.7)';
+    document.body.classList.remove('flying');instrDiv.textContent='👆 Тап: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать';
+    if(viewBtn)viewBtn.style.display='none';
+    for(const d of window.flyingDetached){window.partsLayer.add(d.part);window.placedParts.push(d.part);}window.flyingDetached.length=0;
+  }
+  window.clearAllParts();setActive('wing');nudgeCtrl.style.display='none';snapBtn.style.display='none';
 });
 
-window.renderer.domElement.addEventListener('pointerup',e=>{
-  if(!dragged){if(!wasOnPart&&!window.isFlying)placeClick(e);return;}
-  dragged=null;document.getElementById('mode-indicator').textContent=window.isFlying?'✈️ ПОЛЕТ':'🛠️ СБОРКА';
-});
+document.querySelectorAll('.nudge-btn').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(!window.selectedPart||window.isFlying)return;const axis=b.dataset.axis,dir=parseFloat(b.dataset.dir);window.selectedPart.position[axis]+=dir*0.08;window.selectedPart.position.y=Math.max(-2.5,Math.min(3,window.selectedPart.position.y));window.selectedPart.position.x=Math.max(-2.5,Math.min(2.5,window.selectedPart.position.x));window.selectedPart.position.z=Math.max(-2,Math.min(2,window.selectedPart.position.z));});});
 
-function placeClick(e){
-  const{fh,ph}=getHits(e);
-  if(ph.length){let o=ph[0].object;while(o&&!window.placedParts.includes(o))o=o.parent;if(o&&window.placedParts.includes(o)){window.selectPart(o);return;}}
-  if(fh.length){const type=window.selectedPartType||'wing';const cnt=window.placedParts.filter(p=>p.userData.type===type).length;if(cnt>=LIMITS[type]){alert(`⚠️ Можно только ${LIMITS[type]} детали типа «${type}»`);return;}const pt=fh[0].point.clone();window.airplaneGroup.worldToLocal(pt);const part=window.createPart(type);part.position.copy(pt);partsLayer.add(part);window.placedParts.push(part);window.selectPart(part);}
-}
+snapBtn.addEventListener('click',()=>{if(!window.selectedPart||window.isFlying)return;const snap=window.selectedPart.userData.snapPos;if(snap)window.selectedPart.position.copy(snap);});
+
+setActive('wing');const demo=window.createPart('wing');demo.position.set(0,0.05,0);window.partsLayer.add(demo);window.placedParts.push(demo);window.selectPart(demo);
+
+const VERSION='1.1.0';
+const changelog=[
+  {version:'1.1.0',type:'major',desc:'Три фюзеляжа (лёгкий/средний/тяжёлый). Физика: тангаж навсегда, крен при поворотах. Ландшафт 200×200 с холмами.'},
+  {version:'1.0.5',type:'minor',desc:'Кнопка «Приварить», улучшено управление.'},
+  {version:'1.0.4',type:'patch',desc:'Индикатор и кнопка вида в отдельном блоке.'},
+  {version:'1.0.3',type:'patch',desc:'Код разбит на модули — стабильность.'}
+];
+function renderCL(){vList.innerHTML='';changelog.forEach(e=>{const d=document.createElement('div');d.className=`changelog-entry ${e.type}`;d.innerHTML=`<div class="changelog-version">v${e.version} <span class="tag ${e.type}">${e.type==='major'?'БО':e.type==='minor'?'МО':'П'}+1</span></div><div class="changelog-desc">${e.desc}</div>`;vList.appendChild(d);});}
+vBadge.textContent=`v${VERSION}`;
+vBadge.addEventListener('click',e=>{e.stopPropagation();const vis=vPopup.style.display==='block';vPopup.style.display=vis?'none':'block';if(!vis)renderCL();});
+document.addEventListener('click',e=>{if(!vBadge.contains(e.target)&&!vPopup.contains(e.target))vPopup.style.display='none';});
+
+const clock=new THREE.Clock();
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),0.1);window.updateFlight(window.airplaneGroup,window.camera,window.controls,dt);window.updateDetached(window.flyingDetached,dt);window.controls.update();window.renderer.render(window.scene,window.camera);window.labelRenderer.render(window.scene,window.camera);}
+loop();
