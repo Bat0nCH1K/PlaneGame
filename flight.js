@@ -1,4 +1,4 @@
-// flight.js v4.1
+// flight.js v4.2 — тангаж через локальную ось, взлёт с поднятым носом
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -134,7 +134,8 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     speed: 0,
     maxSpeed: { small: 0.6, med: 0.5, big: 0.4 }[window.currentFuselage],
     agility: { small: 1.2, med: 1.0, big: 0.8 }[window.currentFuselage],
-    onGround: true
+    onGround: true,
+    verticalSpeed: 0
   };
   window.viewMode = 0;
   window.flyingDetached = det;
@@ -179,13 +180,15 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   ag.position.x += fwd.x * f.speed * 60 * dt;
   ag.position.z += fwd.z * f.speed * 60 * dt;
 
+  // Рыскание — мировая ось Y
   const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 1.2 * a * dt;
-  ag.rotation.y += yawRate;
+  ag.rotateY(yawRate);
 
-  const pitchRate = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.6 * a * dt;
-  ag.rotation.x += pitchRate;
+  // Тангаж — ЛОКАЛЬНАЯ ось X
+  const pitchRate = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.8 * a * dt;
+  ag.rotateX(pitchRate);
 
-  // Крен: макс 90° (PI/2), сервопривод к 0
+  // Крен: макс 90°, сервопривод
   const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * Math.PI / 2;
   ag.rotation.z += (rollTarget - ag.rotation.z) * 4 * dt;
 
@@ -194,24 +197,32 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
 
   if (ag.position.y <= -4.5) {
     ag.position.y = -4.5;
+    f.verticalSpeed = 0;
     f.onGround = true;
+    // Взлёт: скорость > 0.15 и нос поднят (pitch отрицательный — нос вверх)
     if (speed > 0.15 && pitch < -0.05) {
-      ag.position.y += (speed - 0.15) * 3 * 60 * dt;
+      f.verticalSpeed = (speed - 0.15) * 8;
       f.onGround = false;
     }
     ag.rotation.z += (0 - ag.rotation.z) * 3 * dt;
   } else {
     f.onGround = false;
-    ag.position.y -= 9.8 * dt;
-    ag.position.y += speed * 0.5 * 60 * dt;
-    if (speed < 0.1) ag.position.y -= 8 * dt;
+    f.verticalSpeed -= 9.8 * dt;
+    f.verticalSpeed += speed * 1.2 * dt;
+    if (speed < 0.1) f.verticalSpeed -= 15 * dt;
   }
+
+  ag.position.y += f.verticalSpeed * dt;
 
   if (ag.position.y < -4.5) {
     ag.position.y = -4.5;
+    f.verticalSpeed = 0;
     f.onGround = true;
   }
-  if (ag.position.y > 50) ag.position.y = 50;
+  if (ag.position.y > 50) {
+    ag.position.y = 50;
+    f.verticalSpeed = Math.min(f.verticalSpeed, 0);
+  }
 
   const camBack = new THREE.Vector3(0, 3, 10);
   camBack.applyQuaternion(ag.quaternion);
