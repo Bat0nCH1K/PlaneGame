@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="error-log" style="position:absolute;top:0;left:0;z-index:999;background:rgba(255,0,0,0.8);color:white;font-size:10px;padding:5px;max-width:100vw;word-break:break-all;display:none;"></div>
   <div id="top-right-area">
     <div id="mode-indicator">🛠️ СБОРКА</div>
     <button id="view-btn" style="display:none;">📷 Сзади</button>
@@ -17,6 +18,11 @@
       <button class="part-btn" id="btn-tail">🪁<span>Хвост</span></button>
       <button class="part-btn" id="btn-engine">🚀<span>Двиг</span></button>
     </div>
+    <div class="panel" id="fuselage-panel">
+      <button class="part-btn active" id="btn-fus-small">🛩️<span>Лёгкий</span></button>
+      <button class="part-btn" id="btn-fus-med">✈️<span>Средний</span></button>
+      <button class="part-btn" id="btn-fus-big">🛫<span>Тяжёлый</span></button>
+    </div>
     <button class="action-btn" id="fly-btn">✈️ ВЗЛЕТ</button>
     <button class="action-btn reset-btn" id="reset-btn">🔄</button>
   </div>
@@ -26,14 +32,22 @@
     <div class="nudge-row"><span class="nudge-label">🔃</span><button class="nudge-btn" data-axis="z" data-dir="1">↑Z</button><button class="nudge-btn" data-axis="z" data-dir="-1">↓Z</button></div>
   </div>
   <button id="snap-btn" style="display:none;position:absolute;bottom:250px;right:10px;z-index:20;padding:10px 16px;border-radius:20px;border:none;background:#f1c40f;color:#1a1a2e;font-weight:bold;font-size:14px;cursor:pointer;">📌 Приварить</button>
-  <div class="instructions" id="instr">👆 Тап по фюзеляжу: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать</div>
+  <div class="instructions" id="instr">👆 Тап: деталь | Тап по детали: выделить | Кнопки: двигать/приварить | ✌️: вращать</div>
   <div id="version-panel">
-    <div id="version-badge">v1.0.5</div>
+    <div id="version-badge">v1.1.0</div>
     <div id="changelog-popup" style="display:none;">
       <div class="changelog-title">📋 История обновлений</div>
       <div class="changelog-list" id="changelog-list"></div>
     </div>
   </div>
+  <script>
+    window.onerror = function(msg, url, line) {
+      var el = document.getElementById('error-log');
+      if (!el) return;
+      el.style.display = 'block';
+      el.innerHTML += '❌ ' + msg + '<br>📁 ' + url + ' : ' + line + '<br><br>';
+    };
+  </script>
   <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }</script>
   <script type="module" src="scene.js"></script>
   <script type="module" src="flight.js"></script>
