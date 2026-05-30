@@ -6,8 +6,8 @@ canvas{display:block;position:absolute;top:0;left:0;z-index:1}
 #top-right-area>*{pointer-events:auto}
 #mode-indicator{background:rgba(0,0,0,0.7);color:white;padding:6px 14px;border-radius:20px;font-weight:bold;font-size:12px;border:1px solid rgba(255,255,255,0.2)}
 .flying #mode-indicator{background:#e74c3c}
-#ui{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;z-index:10;pointer-events:none;justify-content:center}
-#ui>*{pointer-events:auto}
+#build-ui{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;z-index:10;pointer-events:none;justify-content:center}
+#build-ui>*{pointer-events:auto}
 .panel{background:rgba(30,30,50,0.85);border-radius:16px;padding:8px 12px;display:flex;gap:8px;box-shadow:0 8px 25px rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.15)}
 .part-btn{width:55px;height:55px;border-radius:14px;background:linear-gradient(145deg,#3a3a5a,#2a2a40);border:2px solid #5a5a8a;color:white;font-size:22px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);-webkit-tap-highlight-color:transparent}
 .part-btn span{font-size:8px;font-weight:bold;margin-top:1px}
@@ -40,4 +40,5 @@ canvas{display:block;position:absolute;top:0;left:0;z-index:1}
 .mobile-ctrl-container{position:absolute;bottom:130px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:20}
 .mobile-ctrl-row{display:flex;gap:6px}
 .ctrl-btn{width:50px;height:50px;border-radius:25px;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);color:white;font-size:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-@media(max-width:600px){.part-btn{width:44px;height:44px;font-size:18px}.part-btn span{font-size:7px}.action-btn{padding:8px 14px;font-size:12px}.panel{padding:6px 8px;gap:5px}#changelog-popup{width:200px;max-height:220px}#ui{gap:4px}.instructions{font-size:9px}}
+.flying #build-ui,.flying #nudge-controls,.flying #snap-btn{display:none!important}
+@media(max-width:600px){.part-btn{width:44px;height:44px;font-size:18px}.part-btn span{font-size:7px}.action-btn{padding:8px 14px;font-size:12px}.panel{padding:6px 8px;gap:5px}#changelog-popup{width:200px;max-height:220px}.instructions{font-size:9px}}
