@@ -1,4 +1,4 @@
-// flight.js v1.2.3
+// flight.js v1.3.0
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -68,7 +68,7 @@ window.addEventListener('keyup', e => {
 window.detachLooseParts = function(ag, pl, pp) {
   const d = [], r = [];
   for (const p of pp) {
-    if (p.userData.snapPos && p.position.distanceTo(p.userData.snapPos) < 1.2) r.push(p);
+    if (p.userData.snapPos && p.position.distanceTo(p.userData.snapPos) < 1.5) r.push(p);
     else {
       const w = new THREE.Vector3(); p.getWorldPosition(w);
       const q = new THREE.Quaternion(); p.getWorldQuaternion(q);
@@ -111,7 +111,7 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
   window.isFlying = true;
   const sp = { small: 0.4, med: 0.55, big: 0.7 };
   const agil = { small: 1.0, med: 0.65, big: 0.4 };
-  window.flyData = { speed: 0.05, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
+  window.flyData = { speed: 0.08, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
   window.viewMode = 0;
   window.flyingDetached = det;
   ag.position.set(0, -4.5, 30);
@@ -147,47 +147,49 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
 
   // Газ
   const throttle = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
-  f.speed += throttle * 0.01;
-  f.speed = Math.max(0.02, Math.min(f.speed, f.maxSpeed));
+  f.speed += throttle * 0.008;
+  f.speed = Math.max(0.01, Math.min(f.speed, f.maxSpeed));
 
-  // Торможение — СИЛЬНЕЕ
-  f.speed *= 0.996;
+  // Плавное торможение
+  f.speed *= 0.997;
 
-  // Тангаж — относительно самолёта
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.015 * a;
+  // ТАНГАЖ — ВСЕГДА ОТНОСИТЕЛЬНО САМОЛЁТА
+  // pitchup = нос вверх в локальных координатах
+  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.012 * a;
   f.pitch += pitchInput;
   f.pitch = Math.max(-0.5, Math.min(0.5, f.pitch));
-  // Затухание тангажа
-  f.pitch *= 0.995;
+  f.pitch *= 0.996;
 
-  // Рыскание — ОЧЕНЬ МЯГКО
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.003 * a;
+  // РЫСКАНИЕ — ОЧЕНЬ ПЛАВНО
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.002 * a;
   f.yaw += yawInput;
-  f.yaw *= 0.95;
-  // Ограничение угловой скорости
-  f.yaw = Math.max(-0.03, Math.min(0.03, f.yaw));
+  f.yaw *= 0.94;
+  f.yaw = Math.max(-0.02, Math.min(0.02, f.yaw));
 
-  // Крен пропорционален рысканию
-  const targetRoll = f.yaw * 8;
-  f.roll += (targetRoll - f.roll) * 0.04;
+  // КРЕН — плавный, в сторону поворота
+  const targetRoll = f.yaw * 10;
+  f.roll += (targetRoll - f.roll) * 0.03;
 
-  ag.rotation.z = f.roll;
-  ag.rotation.x = f.pitch;
+  // Применяем повороты в порядке: yaw, pitch, roll
   ag.rotation.y += f.yaw;
+  ag.rotation.x = f.pitch;
+  ag.rotation.z = f.roll;
 
-  // Движение вперёд
+  // Вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
   ag.position.add(fwd.multiplyScalar(f.speed));
 
   // Подъёмная сила
-  const lift = f.speed * 0.08 + f.pitch * f.speed * 0.25;
-  ag.position.y += lift - 0.01;
+  const lift = f.speed * 0.1 + f.pitch * f.speed * 0.3;
+  ag.position.y += lift - 0.008;
 
-  // Падает при скорости ниже 0.1
-  if (f.speed < 0.1 && ag.position.y > -4.5) {
-    ag.position.y -= 0.04;
+  // ПЛАВНОЕ ПАДЕНИЕ при низкой скорости
+  if (f.speed < 0.12) {
+    const fallFactor = (0.12 - f.speed) / 0.12;
+    ag.position.y -= fallFactor * 0.05;
   }
 
+  // Земля
   if (ag.position.y < -4.6) {
     ag.position.y = -4.6;
     if (f.pitch < 0) f.pitch *= -0.3;
