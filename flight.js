@@ -1,4 +1,4 @@
-// flight.js v2.4 — стабильно
+// flight.js v3.0 — простая авиа-физика
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -50,7 +50,10 @@ window.showMobileControls = function() {
   createThrottleSlider();
   mobileCtrl = document.createElement('div');
   mobileCtrl.className = 'mobile-ctrl-container';
-  mobileCtrl.innerHTML = '<div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cr">▶</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>';
+  mobileCtrl.innerHTML = `
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cr">▶</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>`;
   document.body.appendChild(mobileCtrl);
   const bind = (id, key) => {
     const b = document.getElementById(id);
@@ -130,10 +133,14 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     }
   }
   window.isFlying = true;
-  // Все летают на одной скорости, но с разной манёвренностью
-  const sp = { small: 0.8, med: 0.7, big: 0.6 };
-  const agil = { small: 1.2, med: 0.9, big: 0.6 };
-  window.flyData = { speed: 0.1, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
+  const maxSp = { small: 0.8, med: 0.7, big: 0.6 };
+  const agil = { small: 1.2, med: 1.0, big: 0.8 };
+  window.flyData = {
+    speed: 0.15,
+    roll: 0, pitch: 0, yaw: 0,
+    maxSpeed: maxSp[window.currentFuselage],
+    agility: agil[window.currentFuselage]
+  };
   window.viewMode = 0;
   window.flyingDetached = det;
   ag.position.set(0, -4.5, 30);
@@ -171,44 +178,42 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const f = window.flyData;
   const a = f.agility;
 
-  // Скорость от ползунка
+  // Скорость
   const targetSpeed = window.throttle * f.maxSpeed;
-  f.speed += (targetSpeed - f.speed) * 0.03;
+  f.speed += (targetSpeed - f.speed) * 2.0 * dt;
 
-  // Тангаж
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.02 * a;
-  const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchInput);
-  ag.quaternion.multiply(pitchQ);
+  // Управление — простые углы Эйлера
+  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 1.5 * a;
+  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.8 * a;
+  const rollInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.5 * a;
 
-  // Рыскание
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.01 * a;
-  const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawInput);
-  ag.quaternion.multiply(yawQ);
+  // Затухание
+  f.pitch += (pitchInput - f.pitch) * 3.0 * dt;
+  f.yaw += (yawInput - f.yaw) * 2.0 * dt;
+  f.roll += (rollInput - f.roll) * 3.0 * dt;
 
-  // Крен
-  const targetRoll = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.3;
-  f.roll += (targetRoll - f.roll) * 0.1;
+  // Применяем углы
+  ag.rotation.x += f.pitch * dt;
+  ag.rotation.y += f.yaw * dt;
   ag.rotation.z = f.roll;
 
-  // Вперёд
+  // Движение вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
   ag.position.add(fwd.multiplyScalar(f.speed * dt * 60));
 
   // Гравитация
   ag.position.y -= 9.8 * dt;
 
-  // Подъёмная сила — теперь работает для всех
+  // Подъёмная сила
   if (f.speed > 0.15) {
-    ag.position.y += (f.speed * 0.6) * dt * 60;
+    ag.position.y += f.speed * 0.8 * dt * 60;
   }
 
   // Земля
   if (ag.position.y < -4.5) {
     ag.position.y = -4.5;
-    const e = new THREE.Euler().setFromQuaternion(ag.quaternion, 'YXZ');
-    e.x *= 0.3;
-    e.z *= 0.3;
-    ag.quaternion.setFromEuler(e);
+    ag.rotation.x *= 0.3;
+    ag.rotation.z *= 0.3;
     f.speed *= 0.9;
   }
 
