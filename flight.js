@@ -1,4 +1,4 @@
-// flight.js v2.0 — полёт
+// flight.js v2.1 — полёт с ползунком газа
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -6,8 +6,10 @@ window.flyData = null;
 window.keys = {};
 window.viewMode = 0;
 window.flyingDetached = [];
+window.throttle = 0; // ползунок газа 0..1
 
 let mobileCtrl = null;
+let throttleSlider = null;
 
 function bindViewBtn() {
   const btn = document.getElementById('view-btn');
@@ -22,11 +24,40 @@ function bindViewBtn() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindViewBtn);
 else bindViewBtn();
 
+function createThrottleSlider() {
+  if (throttleSlider) return;
+  const container = document.createElement('div');
+  container.id = 'throttle-container';
+  container.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:25;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:auto';
+  container.innerHTML = `
+    <div style="color:white;font-size:10px;font-weight:bold;background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:8px;">⚡ ГАЗ</div>
+    <input type="range" id="throttle-slider" min="0" max="100" value="50" style="width:180px;height:20px;-webkit-appearance:none;background:rgba(255,255,255,0.2);border-radius:10px;outline:none;">
+  `;
+  document.body.appendChild(container);
+  const slider = document.getElementById('throttle-slider');
+  slider.addEventListener('input', () => {
+    window.throttle = parseInt(slider.value) / 100;
+  });
+  window.throttle = 0.5;
+  throttleSlider = container;
+}
+
+function removeThrottleSlider() {
+  if (throttleSlider) {
+    throttleSlider.remove();
+    throttleSlider = null;
+  }
+}
+
 window.showMobileControls = function() {
   if (mobileCtrl) return;
+  createThrottleSlider();
   mobileCtrl = document.createElement('div');
   mobileCtrl.className = 'mobile-ctrl-container';
-  mobileCtrl.innerHTML = '<div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cg">⚡</button><button class="ctrl-btn" id="cr">▶</button></div><div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>';
+  mobileCtrl.innerHTML = `
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cu">▲</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cl">◀</button><button class="ctrl-btn" id="cr">▶</button></div>
+    <div class="mobile-ctrl-row"><button class="ctrl-btn" id="cd">▼</button></div>`;
   document.body.appendChild(mobileCtrl);
   const bind = (id, key) => {
     const b = document.getElementById(id);
@@ -39,11 +70,11 @@ window.showMobileControls = function() {
   bind('cd', 'pitchdown');
   bind('cl', 'yawleft');
   bind('cr', 'yawright');
-  bind('cg', 'w');
 };
 
 window.hideMobileControls = function() {
   if (mobileCtrl) { mobileCtrl.remove(); mobileCtrl = null; }
+  removeThrottleSlider();
   Object.keys(window.keys).forEach(k => window.keys[k] = false);
 };
 
@@ -52,14 +83,14 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'ArrowDown') { window.keys['pitchdown'] = true; e.preventDefault(); }
   else if (e.key === 'ArrowLeft') { window.keys['yawleft'] = true; e.preventDefault(); }
   else if (e.key === 'ArrowRight') { window.keys['yawright'] = true; e.preventDefault(); }
-  else window.keys[e.key.toLowerCase()] = true;
+  else if (e.key === 'w' || e.key === 'W') { window.throttle = Math.min(1, window.throttle + 0.1); e.preventDefault(); }
+  else if (e.key === 's' || e.key === 'S') { window.throttle = Math.max(0, window.throttle - 0.1); e.preventDefault(); }
 });
 window.addEventListener('keyup', e => {
   if (e.key === 'ArrowUp') { window.keys['pitchup'] = false; e.preventDefault(); }
   else if (e.key === 'ArrowDown') { window.keys['pitchdown'] = false; e.preventDefault(); }
   else if (e.key === 'ArrowLeft') { window.keys['yawleft'] = false; e.preventDefault(); }
   else if (e.key === 'ArrowRight') { window.keys['yawright'] = false; e.preventDefault(); }
-  else window.keys[e.key.toLowerCase()] = false;
 });
 
 window.detachLooseParts = function(ag, pl, pp) {
@@ -106,9 +137,9 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     }
   }
   window.isFlying = true;
-  const sp = { small: 0.5, med: 0.65, big: 0.8 };
+  const sp = { small: 0.6, med: 0.8, big: 1.0 };
   const agil = { small: 1.2, med: 0.8, big: 0.5 };
-  window.flyData = { speed: 0.15, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
+  window.flyData = { speed: 0.2, roll: 0, pitch: 0, yaw: 0, maxSpeed: sp[window.currentFuselage], agility: agil[window.currentFuselage] };
   window.viewMode = 0;
   window.flyingDetached = det;
   ag.position.set(0, -4.5, 30);
@@ -146,12 +177,11 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const f = window.flyData;
   const a = f.agility;
 
-  // Газ
-  if (k['w']) f.speed += 0.015;
-  if (k['s']) f.speed -= 0.01;
-  f.speed = Math.max(0, Math.min(f.speed, f.maxSpeed));
+  // Скорость от ползунка
+  const targetSpeed = window.throttle * f.maxSpeed;
+  f.speed += (targetSpeed - f.speed) * 0.03;
 
-  // Тангаж — через кватернион, чтобы всегда относительно самолёта
+  // Тангаж
   const pitchQ = new THREE.Quaternion();
   const pitchAxis = new THREE.Vector3(1, 0, 0);
   const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.02 * a;
@@ -165,7 +195,7 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   yawQ.setFromAxisAngle(yawAxis, yawInput);
   ag.quaternion.multiply(yawQ);
 
-  // Крен — только визуальный, через рыскание
+  // Крен визуальный
   const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.3;
   f.roll += (yawRate - f.roll) * 0.1;
   ag.rotation.z = f.roll;
@@ -174,13 +204,12 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
   ag.position.add(fwd.multiplyScalar(f.speed * dt * 60));
 
-  // Гравитация — ВСЕГДА
+  // Гравитация
   ag.position.y -= 9.8 * dt;
 
-  // Подъёмная сила — только при достаточной скорости
-  if (f.speed > 0.15) {
-    const lift = (f.speed - 0.15) * 0.5;
-    ag.position.y += lift * dt * 60;
+  // Подъёмная сила
+  if (f.speed > 0.2) {
+    ag.position.y += (f.speed - 0.2) * 0.6 * dt * 60;
   }
 
   // Земля
@@ -191,7 +220,6 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
     f.speed *= 0.9;
   }
 
-  // Потолок
   if (ag.position.y > 40) ag.position.y = 40;
 
   // Камера
