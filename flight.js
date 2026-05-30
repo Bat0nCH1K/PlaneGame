@@ -1,4 +1,4 @@
-// flight.js v3.4 — реалистичный взлёт
+// flight.js v4.1
 import * as THREE from 'three';
 
 window.isFlying = false;
@@ -6,7 +6,7 @@ window.flyData = null;
 window.keys = {};
 window.viewMode = 0;
 window.flyingDetached = [];
-window.throttle = 0.5;
+window.throttle = 0.3;
 
 let mobileCtrl = null;
 let throttleSlider = null;
@@ -29,7 +29,7 @@ function createThrottleSlider() {
   const container = document.createElement('div');
   container.id = 'throttle-container';
   container.className = 'throttle-container';
-  container.innerHTML = '<div style="color:white;font-size:10px;font-weight:bold;background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:8px;">⚡ ГАЗ <span id="throttle-val">50%</span></div><input type="range" id="throttle-slider" min="0" max="100" value="50" style="width:200px;height:24px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#2ecc71,#f1c40f,#e74c3c);border-radius:12px;outline:none;">';
+  container.innerHTML = '<div style="color:white;font-size:10px;font-weight:bold;background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:8px;">⚡ ГАЗ <span id="throttle-val">30%</span></div><input type="range" id="throttle-slider" min="0" max="100" value="30" style="width:200px;height:24px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#2ecc71,#f1c40f,#e74c3c);border-radius:12px;outline:none;">';
   document.body.appendChild(container);
   const slider = document.getElementById('throttle-slider');
   const label = document.getElementById('throttle-val');
@@ -37,7 +37,7 @@ function createThrottleSlider() {
     window.throttle = parseInt(slider.value) / 100;
     label.textContent = Math.round(window.throttle * 100) + '%';
   });
-  window.throttle = 0.5;
+  window.throttle = 0.3;
   throttleSlider = container;
 }
 
@@ -130,20 +130,15 @@ window.startFlight = function(ag, cam, ctrl, pp, pl) {
     }
   }
   window.isFlying = true;
-  const maxSp = { small: 0.6, med: 0.5, big: 0.4 };
-  const agil = { small: 1.2, med: 1.0, big: 0.8 };
   window.flyData = {
     speed: 0,
-    roll: 0,
-    altitude: -4.5,
-    verticalSpeed: 0,
-    maxSpeed: maxSp[window.currentFuselage],
-    agility: agil[window.currentFuselage],
+    maxSpeed: { small: 0.6, med: 0.5, big: 0.4 }[window.currentFuselage],
+    agility: { small: 1.2, med: 1.0, big: 0.8 }[window.currentFuselage],
     onGround: true
   };
   window.viewMode = 0;
   window.flyingDetached = det;
-  ag.position.set(0, -4.5, 30);
+  ag.position.set(0, -4.5, 0);
   ag.rotation.set(0, 0, 0);
   ctrl.enabled = false;
   window.showMobileControls();
@@ -178,66 +173,48 @@ window.updateFlight = function(ag, cam, ctrl, dt) {
   const f = window.flyData;
   const a = f.agility;
 
-  // Скорость (только вперёд, по земле или в воздухе)
-  const targetSpeed = window.throttle * f.maxSpeed;
-  f.speed += (targetSpeed - f.speed) * 1.5 * dt;
+  f.speed += (window.throttle * f.maxSpeed - f.speed) * 2.0 * dt;
 
-  // Тангаж
-  const pitchInput = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.6 * a * dt;
-  ag.rotateX(pitchInput);
-
-  // Рыскание
-  const yawInput = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.5 * a * dt;
-  ag.rotateY(yawInput);
-
-  // Крен
-  const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 0.25;
-  f.roll += (rollTarget - f.roll) * 4.0 * dt;
-  ag.rotation.z = f.roll;
-
-  // Движение вперёд
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ag.quaternion);
-  ag.position.x += fwd.x * f.speed * dt * 60;
-  ag.position.z += fwd.z * f.speed * dt * 60;
+  ag.position.x += fwd.x * f.speed * 60 * dt;
+  ag.position.z += fwd.z * f.speed * 60 * dt;
 
-  // Гравитация
-  f.verticalSpeed -= 9.8 * dt;
+  const yawRate = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * 1.2 * a * dt;
+  ag.rotation.y += yawRate;
 
-  // Подъёмная сила от скорости И угла атаки
-  const angleOfAttack = Math.sin(ag.rotation.x);
-  const liftFromSpeed = f.speed * 0.3;
-  const liftFromAoA = Math.max(0, angleOfAttack) * f.speed * 2.0;
-  f.verticalSpeed += (liftFromSpeed + liftFromAoA) * dt;
+  const pitchRate = ((k['pitchup'] ? 1 : 0) - (k['pitchdown'] ? 1 : 0)) * 0.6 * a * dt;
+  ag.rotation.x += pitchRate;
 
-  // Вертикальное движение
-  ag.position.y += f.verticalSpeed * dt * 60;
+  // Крен: макс 90° (PI/2), сервопривод к 0
+  const rollTarget = ((k['yawleft'] ? 1 : 0) - (k['yawright'] ? 1 : 0)) * Math.PI / 2;
+  ag.rotation.z += (rollTarget - ag.rotation.z) * 4 * dt;
 
-  // Земля
+  const speed = f.speed;
+  const pitch = ag.rotation.x;
+
   if (ag.position.y <= -4.5) {
     ag.position.y = -4.5;
-    f.verticalSpeed = 0;
     f.onGround = true;
-    ag.rotation.x *= 0.95;
-    ag.rotation.z *= 0.95;
+    if (speed > 0.15 && pitch < -0.05) {
+      ag.position.y += (speed - 0.15) * 3 * 60 * dt;
+      f.onGround = false;
+    }
+    ag.rotation.z += (0 - ag.rotation.z) * 3 * dt;
   } else {
     f.onGround = false;
+    ag.position.y -= 9.8 * dt;
+    ag.position.y += speed * 0.5 * 60 * dt;
+    if (speed < 0.1) ag.position.y -= 8 * dt;
   }
 
-  if (ag.position.y > 60) {
-    ag.position.y = 60;
-    f.verticalSpeed = Math.min(f.verticalSpeed, 0);
+  if (ag.position.y < -4.5) {
+    ag.position.y = -4.5;
+    f.onGround = true;
   }
+  if (ag.position.y > 50) ag.position.y = 50;
 
-  // Камера
-  if (window.viewMode === 0) {
-    const off = new THREE.Vector3(0, 3, 10).applyQuaternion(ag.quaternion);
-    cam.position.lerp(ag.position.clone().add(off), 0.06);
-    ctrl.target.lerp(ag.position.clone(), 0.1);
-  } else if (window.viewMode === 1) {
-    const off = new THREE.Vector3(10, 2, 0).applyQuaternion(ag.quaternion);
-    cam.position.lerp(ag.position.clone().add(off), 0.05);
-    ctrl.target.lerp(ag.position.clone(), 0.08);
-  } else {
-    if (!ctrl.enabled) { ctrl.enabled = true; ctrl.target.copy(ag.position); }
-  }
+  const camBack = new THREE.Vector3(0, 3, 10);
+  camBack.applyQuaternion(ag.quaternion);
+  cam.position.lerp(ag.position.clone().add(camBack), 0.08);
+  ctrl.target.lerp(ag.position.clone(), 0.1);
 };
